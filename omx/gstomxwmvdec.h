@@ -45,6 +45,12 @@ typedef struct _GstOMXWMVDecClass GstOMXWMVDecClass;
 struct _GstOMXWMVDec
 {
   GstOMXVideoDec parent;
+  #ifdef __LINUX_MEDIA_NAS__
+    guint width;
+    guint height;
+    guint fps;
+    gchar autoResize[GST_OMX_OUTPUT_AUTORISIZE_LEN_MAX];
+#endif
 };
 
 struct _GstOMXWMVDecClass
@@ -57,4 +63,3 @@ GType gst_omx_wmv_dec_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_WMV_DEC_H__ */
-

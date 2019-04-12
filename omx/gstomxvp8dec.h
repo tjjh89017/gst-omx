@@ -45,6 +45,12 @@ typedef struct _GstOMXVP8DecClass GstOMXVP8DecClass;
 struct _GstOMXVP8Dec
 {
   GstOMXVideoDec parent;
+#ifdef __LINUX_MEDIA_NAS__
+    guint width;
+    guint height;
+    guint fps;
+    gchar autoResize[GST_OMX_OUTPUT_AUTORISIZE_LEN_MAX];
+#endif
 };
 
 struct _GstOMXVP8DecClass
@@ -57,4 +63,3 @@ GType gst_omx_vp8_dec_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_VP8_DEC_H__ */
-

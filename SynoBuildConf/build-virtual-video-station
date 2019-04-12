@@ -1,0 +1,27 @@
+#!/bin/bash
+
+SynoPkgDir="/usr/pkg"
+PackageName="VideoStation"
+PackageDir="/var/packages/$PackageName/target"
+COMMON_RPATH="-Wl,-rpath-link=${SysRootPrefix}/pkg/lib -Wl,-rpath=${PackageDir}/lib/gstreamer -Wl,-rpath=${PackageDir}/lib/gstreamer/gstreamer-1.0 -Wl,-rpath=${PackageDir}/lib/realtek"
+
+if ! checkPlatformFunction SYNO_PLAT_TRANSCODE_FOR_RTD1296; then
+	SkipThisProject
+	return
+fi
+
+env CC=${CC} \
+	CXX=${CXX} \
+	CFLAGS="${CFLAGS} -D__LINUX_MEDIA_NAS__ -DSYNO_VIDEOSTATION -DSYNO_CODEC_PATENT_G1" \
+	AR=${AR} \
+	LIBDIR="${PackageDir}/lib/gstreamer" \
+	PLUGINDIR="${PackageDir}/lib/gstreamer/gstreamer-1.0" \
+	LDFLAGS="${LDFLAGS} ${COMMON_RPATH}" \
+	PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:${SysRootPrefix}/pkg/lib/pkgconfig" \
+	./configure \
+	--host="${HOST}" \
+	--prefix="${SynoPkgDir}" \
+	--with-omx-header-path=$PWD/omx/khronos \
+	--with-omx-target=generic
+
+make ${MAKE_FLAGS}

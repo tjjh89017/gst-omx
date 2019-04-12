@@ -82,7 +82,6 @@ extern "C" {
 #define OMX_OUT
 #endif
 
-
 /** OMX_INOUT is used to identify parameters that may be either inputs or
     outputs from an OMX function at the same time.  This designation will 
     also be used in the case of a pointer that  points to a parameter that 
@@ -147,7 +146,6 @@ typedef unsigned long OMX_U32;
 /** OMX_S32 is a 32 bit signed quantity that is 32 bit word aligned */
 typedef signed long OMX_S32;
 
-
 /* Users with compilers that cannot accept the "long long" designation should
    define the OMX_SKIP64BIT macro.  It should be noted that this may cause 
    some components to fail to compile if the component was written to require
@@ -180,7 +178,6 @@ typedef signed long long OMX_S64;
 
 #endif /* WIN32 */
 #endif
-
 
 /** The OMX_BOOL type is intended to be used to represent a true or a false 
     value when passing parameters to and from the OMX core and components.  The
@@ -238,7 +235,6 @@ typedef enum OMX_ENDIANTYPE
     OMX_EndianMax = 0x7FFFFFFF
 } OMX_ENDIANTYPE;
 
-
 /** The OMX_NUMERICALDATATYPE enumeration is used to indicate if data 
     is signed or unsigned
  */
@@ -249,7 +245,6 @@ typedef enum OMX_NUMERICALDATATYPE
     OMX_NumercialDataMax = 0x7FFFFFFF
 } OMX_NUMERICALDATATYPE;
 
-
 /** Unsigned bounded value type */
 typedef struct OMX_BU32 {
     OMX_U32 nValue; /**< actual value */
@@ -257,14 +252,12 @@ typedef struct OMX_BU32 {
     OMX_U32 nMax;   /**< maximum for value (i.e. nValue <= nMax) */
 } OMX_BU32;
 
-
 /** Signed bounded value type */
 typedef struct OMX_BS32 {
     OMX_S32 nValue; /**< actual value */
     OMX_S32 nMin;   /**< minimum for value (i.e. nValue >= nMin) */
     OMX_S32 nMax;   /**< maximum for value (i.e. nValue <= nMax) */
 } OMX_BS32;
-
 
 /** Structure representing some time or duration in microseconds. This structure
   *  must be interpreted as a signed 64 bit value. The quantity is signed to accommodate 
@@ -304,7 +297,6 @@ typedef struct OMX_MARKTYPE
                               this mark from others. */
 } OMX_MARKTYPE;
 
-
 /** OMX_NATIVE_DEVICETYPE is used to map a OMX video port to the
  *  platform & operating specific object used to reference the display 
  *  or can be used by a audio port for native audio rendering */
@@ -313,7 +305,6 @@ typedef void* OMX_NATIVE_DEVICETYPE;
 /** OMX_NATIVE_WINDOWTYPE is used to map a OMX video port to the
  *  platform & operating specific object used to reference the window */
 typedef void* OMX_NATIVE_WINDOWTYPE;
-
 
 /** Define the OMX IL version that corresponds to this set of header files.
  *  We also define a combined version that can be used to write or compare
@@ -324,7 +315,6 @@ typedef void* OMX_NATIVE_WINDOWTYPE;
 #define OMX_VERSION_STEP 0
 
 #define OMX_VERSION ((OMX_VERSION_STEP<<24) | (OMX_VERSION_REVISION<<16) | (OMX_VERSION_MINOR<<8) | OMX_VERSION_MAJOR)
-
 
 /** The OMX_VERSIONTYPE union is used to specify the version for
     a structure or component.  For a component, the version is entirely

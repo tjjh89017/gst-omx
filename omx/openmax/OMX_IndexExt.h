@@ -39,7 +39,6 @@ extern "C" {
  */
 #include <OMX_Index.h>
 
-
 /** Khronos standard extension indices.
 
 This enum lists the current Khronos extension indices to OpenMAX IL.

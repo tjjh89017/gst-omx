@@ -126,7 +126,6 @@ main (gint argc, gchar ** argv)
     return -1;
   }
 
-
   if ((err = omx_init ()) != OMX_ErrorNone) {
     g_printerr ("Failed to initialize core: %d\n", err);
     return -1;

@@ -1,0 +1,24 @@
+#!/bin/bash
+INST_DIR=${INST_DIR:-/tmp/_install}
+
+SynoPkgDir="${SysRootPrefix}/pkg"
+
+if ! checkPlatformFunction SYNO_PLAT_TRANSCODE_FOR_RTD1296; then
+	SkipThisProject
+	return
+fi
+
+# install gstreamer project
+InstallPreparePkgDir $INST_DIR "etc"
+
+# libgstomx.so is installed in install-dev
+
+PackageName="VideoStation"
+LibPrefix="/var/packages/$PackageName/target/lib/realtek"
+GST_OMX_CONF="config/synology/gstomx.conf"
+
+# generate config from template
+sed "s,__LIB_PREFIX__,${LibPrefix},g" "${GST_OMX_CONF}.template" > "${GST_OMX_CONF}"
+
+# install config
+InstallPkgFiles $INST_DIR "etc" 644 "${GST_OMX_CONF}"

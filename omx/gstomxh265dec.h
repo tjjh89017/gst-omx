@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2011, Hewlett-Packard Development Company, L.P.
- * Copyright (C) 2017 Xilinx, Inc.
  *   Author: Sebastian Dröge <sebastian.droege@collabora.co.uk>, Collabora Ltd.
  *
  * This library is free software; you can redistribute it and/or
@@ -46,6 +45,12 @@ typedef struct _GstOMXH265DecClass GstOMXH265DecClass;
 struct _GstOMXH265Dec
 {
   GstOMXVideoDec parent;
+#ifdef __LINUX_MEDIA_NAS__
+    guint width;
+    guint height;
+    guint fps;
+    gchar autoResize[GST_OMX_OUTPUT_AUTORISIZE_LEN_MAX];
+#endif
 };
 
 struct _GstOMXH265DecClass
@@ -58,4 +63,3 @@ GType gst_omx_h265_dec_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_H265_DEC_H__ */
-

@@ -57,4 +57,3 @@ GType gst_omx_mpeg4_video_enc_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_MPEG4_VIDEO_ENC_H__ */
-

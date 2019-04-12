@@ -63,7 +63,7 @@ gst_omx_h263_enc_class_init (GstOMXH263EncClass * klass)
 
   gst_element_class_set_static_metadata (element_class,
       "OpenMAX H.263 Video Encoder",
-      "Codec/Encoder/Video/Hardware",
+      "Codec/Encoder/Video",
       "Encode H.263 video streams",
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
 
@@ -262,7 +262,6 @@ gst_omx_h263_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
         break;
       default:
         g_assert_not_reached ();
-        gst_caps_unref (caps);
         return NULL;
     }
 
@@ -290,7 +289,6 @@ gst_omx_h263_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
         break;
       default:
         g_assert_not_reached ();
-        gst_caps_unref (caps);
         return NULL;
     }
 

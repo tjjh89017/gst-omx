@@ -26,6 +26,9 @@
 #include <gst/video/gstvideoencoder.h>
 
 #include "gstomx.h"
+#ifdef __LINUX_MEDIA_NAS__
+#include <sys/time.h>
+#endif
 
 G_BEGIN_DECLS
 
@@ -58,8 +61,6 @@ struct _GstOMXVideoEnc
   /* TRUE if the component is configured and saw
    * the first buffer */
   gboolean started;
-   /* TRUE if the ports where disabled after being activated the first time. */
-  gboolean disabled;
 
   GstClockTime last_upstream_ts;
 
@@ -67,49 +68,26 @@ struct _GstOMXVideoEnc
   GMutex drain_lock;
   GCond drain_cond;
   /* TRUE if EOS buffers shouldn't be forwarded */
-  gboolean draining; /* protected by drain_lock */
+  gboolean draining;
 
   /* properties */
   guint32 control_rate;
-  guint32 target_bitrate; /* protected by object lock */
+  guint32 target_bitrate;
   guint32 quant_i_frames;
   guint32 quant_p_frames;
   guint32 quant_b_frames;
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  guint32 qp_mode;
-  guint32 min_qp;
-  guint32 max_qp;
-  guint32 gop_mode;
-  guint32 gdr_mode;
-  guint32 initial_delay;
-  guint32 cpb_size;
-  guint32 scaling_list;
-  gboolean low_bandwidth;
-  guint32 max_bitrate;
-  guint32 aspect_ratio;
-  gboolean filler_data;
-  guint32 num_slices;
-  guint32 slice_size;
-  gboolean dependent_slice;
-  gint default_roi_quality;
+#ifdef __LINUX_MEDIA_NAS__
+  gboolean fps_statistics;
+  struct timeval timestamp;
+  guint32 max_fps;
+  guint32 min_fps;
+  gfloat avg_fps; 
+  guint32 fps_count;
+  guint32 fps_total_count;
+  guint32 fps_total_duration;
 #endif
-
-  guint32 default_target_bitrate;
 
   GstFlowReturn downstream_flow_ret;
-
-  GstOMXBufferAllocation input_allocation;
-  /* TRUE if encoder is passing dmabuf's fd directly to the OMX component */
-  gboolean input_dmabuf;
-  /* Number of buffers requested downstream */
-  guint nb_downstream_buffers;
-
-  /* TRUE if input buffers are from the pool we proposed to upstream */
-  gboolean in_pool_used;
-
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  GEnumClass *alg_roi_quality_enum_class;
-#endif
 };
 
 struct _GstOMXVideoEncClass

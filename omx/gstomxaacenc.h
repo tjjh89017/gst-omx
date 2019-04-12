@@ -62,4 +62,3 @@ GType gst_omx_aac_enc_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_AAC_ENC_H__ */
-

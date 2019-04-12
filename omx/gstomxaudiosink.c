@@ -23,7 +23,6 @@
 #include "config.h"
 #endif
 
-
 #include <gst/gst.h>
 #include <gst/audio/audio.h>
 
@@ -358,7 +357,7 @@ gst_omx_audio_sink_close (GstAudioSink * audiosink)
   self->in_port = NULL;
   self->out_port = NULL;
   if (self->comp)
-    gst_omx_component_unref (self->comp);
+    gst_omx_component_free (self->comp);
   self->comp = NULL;
 
   GST_DEBUG_OBJECT (self, "Closed audio sink");
@@ -760,7 +759,7 @@ gst_omx_audio_sink_acquire_buffer (GstOMXAudioSink * self)
   GstOMXBuffer *buf = NULL;
 
   while (!buf) {
-    acq_ret = gst_omx_port_acquire_buffer (port, &buf, GST_OMX_WAIT);
+    acq_ret = gst_omx_port_acquire_buffer (port, &buf);
     if (acq_ret == GST_OMX_ACQUIRE_BUFFER_ERROR) {
       goto component_error;
     } else if (acq_ret == GST_OMX_ACQUIRE_BUFFER_FLUSHING) {
@@ -1206,7 +1205,6 @@ gst_omx_audio_sink_class_init (GstOMXAudioSinkClass * klass)
   audiosink_class->write = GST_DEBUG_FUNCPTR (gst_omx_audio_sink_write);
   audiosink_class->delay = GST_DEBUG_FUNCPTR (gst_omx_audio_sink_delay);
   audiosink_class->reset = GST_DEBUG_FUNCPTR (gst_omx_audio_sink_reset);
-
 
   klass->cdata.type = GST_OMX_COMPONENT_TYPE_SINK;
 }

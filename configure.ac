@@ -5,14 +5,14 @@ dnl please read gstreamer/docs/random/autotools before changing this file
 dnl initialize autoconf
 dnl releases only do -Wall, git and prerelease does -Werror too
 dnl use a three digit version number for releases, and four for git/prerelease
-AC_INIT(GStreamer OpenMAX Plug-ins, 1.15.90,
+AC_INIT(GStreamer OpenMAX Plug-ins, 1.2.0,
     http://bugzilla.gnome.org/enter_bug.cgi?product=GStreamer,
     gst-omx)
 
 AG_GST_INIT
 
 dnl initialize automake
-AM_INIT_AUTOMAKE([-Wno-portability 1.11 no-dist-gzip dist-xz tar-ustar subdir-objects])
+AM_INIT_AUTOMAKE([-Wno-portability 1.11 no-dist-gzip dist-xz tar-ustar])
 
 dnl define PACKAGE_VERSION_* variables
 AS_VERSION
@@ -45,10 +45,10 @@ AC_DEFINE_UNQUOTED(GST_API_VERSION, "$GST_API_VERSION",
   [GStreamer API Version])
 
 AG_GST_LIBTOOL_PREPARE
-AS_LIBTOOL(GST, 1590, 0, 1590)
+AS_LIBTOOL(GST, 0, 0, 0)
 
 dnl *** required versions of GStreamer stuff ***
-GST_REQ=1.15.90
+GST_REQ=1.2.2
 
 dnl *** autotools stuff ****
 
@@ -137,7 +137,7 @@ AG_GST_CHECK_FUNCTION
 dnl *** checks for dependency libraries ***
 
 dnl GLib is required
-AG_GST_GLIB_CHECK([2.40.0])
+AG_GST_GLIB_CHECK([2.32])
 
 dnl Needed by plugins that use g_module_*() API
 PKG_CHECK_MODULES(GMODULE_NO_EXPORT, gmodule-no-export-2.0)
@@ -150,108 +150,17 @@ AG_GST_CHECK_GST_CONTROLLER($GST_API_VERSION, [$GST_REQ], yes)
 AG_GST_CHECK_GST_CHECK($GST_API_VERSION, [$GST_REQ], no)
 AG_GST_CHECK_GST_PLUGINS_BASE($GST_API_VERSION, [$GST_REQ], yes)
 AM_CONDITIONAL(HAVE_GST_CHECK, test "x$HAVE_GST_CHECK" = "xyes")
-PKG_CHECK_MODULES([GST_GL], [gstreamer-gl-1.0 >= $GST_REQ], [
+PKG_CHECK_MODULES([GST_GL], [gstreamer-gl-1.0 >= 1.4.0], [
   AC_DEFINE(HAVE_GST_GL, 1, [Have gstreamer-gl])
   GST_GL=yes
 ], [GST_GL=no])
 AM_CONDITIONAL(HAVE_GST_GL, test "x$GST_GL" = "xyes")
-PKG_CHECK_MODULES([GST_ALLOCATORS], [gstreamer-allocators-1.0])
 
 dnl Check for documentation xrefs
 GLIB_PREFIX="`$PKG_CONFIG --variable=prefix glib-2.0`"
 GST_PREFIX="`$PKG_CONFIG --variable=prefix gstreamer-$GST_API_VERSION`"
 AC_SUBST(GLIB_PREFIX)
 AC_SUBST(GST_PREFIX)
-
-dnl *** EGL ***
-PKG_CHECK_MODULES([EGL], [egl], [
-  AC_DEFINE(HAVE_EGL, 1, [Have egl])
-  HAVE_EGL=yes
-], [HAVE_EGL=no])
-AM_CONDITIONAL(HAVE_EGL, test "x$HAVE_EGL" = "xyes")
-
-dnl *** GLESv2 ***
-PKG_CHECK_MODULES([GLES2], [glesv2], [
-  AC_DEFINE(HAVE_EGL, 1, [Have glesv2])
-  HAVE_GLES2=yes
-], [HAVE_GLES2=no])
-AM_CONDITIONAL(HAVE_GLES2, test "x$HAVE_GLES2" = "xyes")
-
-dnl *** X11 ***
-PKG_CHECK_MODULES([X11], [x11], [
-  AC_DEFINE(HAVE_X11, 1, [Have x11])
-  HAVE_X11=yes
-], [HAVE_X11=no])
-AM_CONDITIONAL(HAVE_X11, test "x$HAVE_X11" = "xyes")
-
-dnl Check for -Bsymbolic-functions linker flag used to avoid
-dnl intra-library PLT jumps, if available.
-AC_ARG_ENABLE(Bsymbolic,
-              [AS_HELP_STRING([--disable-Bsymbolic],[avoid linking with -Bsymbolic])],,
-              [SAVED_LDFLAGS="${LDFLAGS}" SAVED_LIBS="${LIBS}"
-               AC_MSG_CHECKING([for -Bsymbolic-functions linker flag])
-               LDFLAGS=-Wl,-Bsymbolic-functions
-               LIBS=
-               AC_TRY_LINK([], [return 0],
-                           AC_MSG_RESULT(yes)
-                           enable_Bsymbolic=yes,
-                           AC_MSG_RESULT(no)
-                           enable_Bsymbolic=no)
-               LDFLAGS="${SAVED_LDFLAGS}" LIBS="${SAVED_LIBS}"])
-
-AC_ARG_WITH([omx-target],
-        AS_HELP_STRING([--with-omx-target],[Use this OpenMAX IL target (generic, bellagio, rpi, tizonia, zynqultrascaleplus)]),
-        [ac_cv_omx_target="$withval"], [ac_cv_omx_target="none"])
-
-ac_cv_omx_target_struct_packing="none"
-AC_MSG_NOTICE([Using $ac_cv_omx_target as OpenMAX IL target])
-case "${ac_cv_omx_target}" in
-  generic)
-    AC_DEFINE(USE_OMX_TARGET_GENERIC, 1, [Use generic OpenMAX IL target])
-    ;;
-  rpi)
-    AC_DEFINE(USE_OMX_TARGET_RPI, 1, [Use RPi OpenMAX IL target])
-    AC_DEFINE(OMX_SKIP64BIT, 1, [Required by the RPi implementation])
-    ac_cv_omx_target_struct_packing=4
-    ;;
-  bellagio)
-    AC_DEFINE(USE_OMX_TARGET_BELLAGIO, 1, [Use Bellagio OpenMAX IL target])
-    ;;
-  zynqultrascaleplus)
-    AC_DEFINE(USE_OMX_TARGET_ZYNQ_USCALE_PLUS, 1, [Use Zynq UltraScale+ OpenMAX IL target])
-    ;;
-  tizonia)
-    AC_DEFINE(USE_OMX_TARGET_TIZONIA, 1, [Use Tizonia OpenMAX IL target])
-    ;;
-  none|*)
-    AC_ERROR([invalid OpenMAX IL target, you must specify one of --with-omx-target={generic,rpi,bellagio,tizonia,zynqultrascaleplus}])
-    ;;
-esac
-AM_CONDITIONAL(USE_OMX_TARGET_GENERIC, test "x$ac_cv_omx_target" = "xgeneric")
-AM_CONDITIONAL(USE_OMX_TARGET_BELLAGIO, test "x$ac_cv_omx_target" = "xbellagio")
-AM_CONDITIONAL(USE_OMX_TARGET_TIZONIA, test "x$ac_cv_omx_target" = "xtizonia")
-AM_CONDITIONAL(USE_OMX_TARGET_RPI, test "x$ac_cv_omx_target" = "xrpi")
-AM_CONDITIONAL(USE_OMX_TARGET_ZYNQ_USCALE_PLUS, test "x$ac_cv_omx_target" = "xzynqultrascaleplus")
-
-AC_ARG_WITH([omx-struct-packing],
-        AS_HELP_STRING([--with-omx-struct-packing],[Force OpenMAX struct packing, (default is none)]),
-        [ac_cv_omx_struct_packing="$withval"], [ac_cv_omx_struct_packing="none"])
-
-if test x"$ac_cv_omx_struct_packing" != x"none"; then
-  AC_MSG_NOTICE([Using $ac_cv_omx_struct_packing as OpenMAX struct packing])
-  AC_DEFINE_UNQUOTED(GST_OMX_STRUCT_PACKING, $ac_cv_omx_struct_packing, [The struct packing used for OpenMAX structures])
-elif test x"$ac_cv_omx_target_struct_packing" != x"none"; then
-  AC_MSG_NOTICE([Using $ac_cv_omx_target_struct_packing as OpenMAX struct packing])
-  AC_DEFINE_UNQUOTED(GST_OMX_STRUCT_PACKING, $ac_cv_omx_target_struct_packing, [The struct packing used for OpenMAX structures])
-fi
-
-dnl settings for tizonia target
-if test "x$ac_cv_omx_target" = "xtizonia"; then
-    PKG_CHECK_MODULES([TIZONIA], [tizilheaders])
-    CPPFLAGS="$CPPFLAGS $TIZONIA_CFLAGS"
-    TIZONIA_LIBDIR="`$PKG_CONFIG --variable=libdir tizilheaders`"
-    AC_SUBST(TIZONIA_LIBDIR)
-fi
 
 AC_ARG_WITH([omx-header-path],
             AS_HELP_STRING([--with-omx-header-path],[path of external OpenMAX IL header files]),
@@ -264,27 +173,10 @@ dnl Check for external OpenMAX IL headers
 AC_CHECK_HEADER([OMX_Core.h], [HAVE_EXTERNAL_OMX=yes], [HAVE_EXTERNAL_OMX=no], [AC_INCLUDES_DEFAULT])
 AM_CONDITIONAL(HAVE_EXTERNAL_OMX, test "x$HAVE_EXTERNAL_OMX" = "xyes")
 
-dnl OMX defines 8 header files to contain extensions:
-dnl OMX_VideoExt.h, OMX_IndexExt.h, OMX_ComponentExt.h, OMX_CoreExt.h
-dnl OMX_AudioExt.h, OMX_IVCommonExt.h, OMX_ImageExt.h, OMX_OtherExt.h
-dnl The first 4 are present in our internal OpenMAX IL, the latter are not
+dnl Our internal OpenMAX IL headers have OMX_VideoExt.h
 HAVE_VIDEO_EXT=yes
-HAVE_INDEX_EXT=yes
-HAVE_COMPONENT_EXT=yes
-HAVE_CORE_EXT=yes
-HAVE_AUDIO_EXT=no
-HAVE_IV_COMMON_EXT=no
-HAVE_IMAGE_EXT=no
-HAVE_OTHER_EXT=no
 if test "x$HAVE_EXTERNAL_OMX" = "xyes"; then
     AC_CHECK_HEADER([OMX_VideoExt.h], [HAVE_VIDEO_EXT=yes], [HAVE_VIDEO_EXT=no], [AC_INCLUDES_DEFAULT])
-    AC_CHECK_HEADER([OMX_IndexExt.h], [HAVE_INDEX_EXT=yes], [HAVE_INDEX_EXT=no], [AC_INCLUDES_DEFAULT])
-    AC_CHECK_HEADER([OMX_ComponentExt.h], [HAVE_COMPONENT_EXT=yes], [HAVE_COMPONENT_EXT=no], [AC_INCLUDES_DEFAULT])
-    AC_CHECK_HEADER([OMX_CoreExt.h], [HAVE_CORE_EXT=yes], [HAVE_CORE_EXT=no], [AC_INCLUDES_DEFAULT])
-    AC_CHECK_HEADER([OMX_AudioExt.h], [HAVE_AUDIO_EXT=yes], [HAVE_AUDIO_EXT=no], [AC_INCLUDES_DEFAULT])
-    AC_CHECK_HEADER([OMX_IVCommonExt.h], [HAVE_IV_COMMON_EXT=yes], [HAVE_IV_COMMON_EXT=no], [AC_INCLUDES_DEFAULT])
-    AC_CHECK_HEADER([OMX_ImageExt.h], [HAVE_IMAGE_EXT=yes], [HAVE_IMAGE_EXT=no], [AC_INCLUDES_DEFAULT])
-    AC_CHECK_HEADER([OMX_OtherExt.h], [HAVE_OTHER_EXT=yes], [HAVE_OTHER_EXT=no], [AC_INCLUDES_DEFAULT])
 fi
 
 VIDEO_HEADERS="#include <OMX_Video.h>"
@@ -293,34 +185,6 @@ if test "x$HAVE_VIDEO_EXT" = "xyes"; then
     VIDEO_HEADERS="$VIDEO_HEADERS
 #include <OMX_VideoExt.h>
 "
-fi
-
-if test "x$HAVE_INDEX_EXT" = "xyes"; then
-    AC_DEFINE(HAVE_INDEX_EXT, 1, [OpenMAX IL has OMX_IndexExt.h header])
-fi
-
-if test "x$HAVE_COMPONENT_EXT" = "xyes"; then
-    AC_DEFINE(HAVE_COMPONENT_EXT, 1, [OpenMAX IL has OMX_ComponentExt.h header])
-fi
-
-if test "x$HAVE_CORE_EXT" = "xyes"; then
-    AC_DEFINE(HAVE_CORE_EXT, 1, [OpenMAX IL has OMX_CoreExt.h header])
-fi
-
-if test "x$HAVE_AUDIO_EXT" = "xyes"; then
-    AC_DEFINE(HAVE_AUDIO_EXT, 1, [OpenMAX IL has OMX_AudioExt.h header])
-fi
-
-if test "x$HAVE_IV_COMMON_EXT" = "xyes"; then
-    AC_DEFINE(HAVE_IV_COMMON_EXT, 1, [OpenMAX IL has OMX_IVCommonExt.h header])
-fi
-
-if test "x$HAVE_IMAGE_EXT" = "xyes"; then
-    AC_DEFINE(HAVE_IMAGE_EXT, 1, [OpenMAX IL has OMX_ImageExt.h header])
-fi
-
-if test "x$HAVE_OTHER_EXT" = "xyes"; then
-    AC_DEFINE(HAVE_OTHER_EXT, 1, [OpenMAX IL has OMX_OtherExt.h header])
 fi
 
 AC_CHECK_DECLS([OMX_VIDEO_CodingVP8],
@@ -341,17 +205,56 @@ AC_CHECK_DECLS([OMX_VIDEO_CodingTheora],
   ], [[$VIDEO_HEADERS]])
 AM_CONDITIONAL(HAVE_THEORA, test "x$HAVE_THEORA" = "xyes")
 
-AC_CHECK_DECLS([OMX_VIDEO_CodingHEVC],
-  [
-    AC_DEFINE(HAVE_HEVC, 1, [OpenMAX IL has HEVC support])
-    HAVE_HEVC=yes
-  ], [
-    HAVE_HEVC=no
-  ], [[$VIDEO_HEADERS]])
-AM_CONDITIONAL(HAVE_HEVC, test "x$HAVE_HEVC" = "xyes")
+dnl Check for -Bsymbolic-functions linker flag used to avoid
+dnl intra-library PLT jumps, if available.
+AC_ARG_ENABLE(Bsymbolic,
+              [AS_HELP_STRING([--disable-Bsymbolic],[avoid linking with -Bsymbolic])],,
+              [SAVED_LDFLAGS="${LDFLAGS}" SAVED_LIBS="${LIBS}"
+               AC_MSG_CHECKING([for -Bsymbolic-functions linker flag])
+               LDFLAGS=-Wl,-Bsymbolic-functions
+               LIBS=
+               AC_TRY_LINK([], [return 0],
+                           AC_MSG_RESULT(yes)
+                           enable_Bsymbolic=yes,
+                           AC_MSG_RESULT(no)
+                           enable_Bsymbolic=no)
+               LDFLAGS="${SAVED_LDFLAGS}" LIBS="${SAVED_LIBS}"])
 
-if test "x$ac_cv_omx_target" = "xzynqultrascaleplus"; then
-    AC_CHECK_HEADER([OMX_Allegro.h], [], [AC_ERROR([Need Allegro OMX headers to build for Zynq UltraScale+. Use --with-omx-header-path= argument to specify the path of those headers.])], [AC_INCLUDES_DEFAULT])
+AC_ARG_WITH([omx-target],
+        AS_HELP_STRING([--with-omx-target],[Use this OpenMAX IL target (generic, bellagio, rpi)]),
+        [ac_cv_omx_target="$withval"], [ac_cv_omx_target="none"])
+
+ac_cv_omx_target_struct_packing="none"
+AC_MSG_NOTICE([Using $ac_cv_omx_target as OpenMAX IL target])
+case "${ac_cv_omx_target}" in
+  generic)
+    AC_DEFINE(USE_OMX_TARGET_GENERIC, 1, [Use generic OpenMAX IL target])
+    ;;
+  rpi)
+    AC_DEFINE(USE_OMX_TARGET_RPI, 1, [Use RPi OpenMAX IL target])
+    ac_cv_omx_target_struct_packing=4
+    ;;
+  bellagio)
+    AC_DEFINE(USE_OMX_TARGET_BELLAGIO, 1, [Use Bellagio OpenMAX IL target])
+    ;;
+  none|*)
+    AC_ERROR([invalid OpenMAX IL target, you must specify one of --with-omx-target={generic,rpi,bellagio}])
+    ;;
+esac
+AM_CONDITIONAL(USE_OMX_TARGET_GENERIC, test "x$ac_cv_omx_target" = "xgeneric")
+AM_CONDITIONAL(USE_OMX_TARGET_BELLAGIO, test "x$ac_cv_omx_target" = "xbellagio")
+AM_CONDITIONAL(USE_OMX_TARGET_RPI, test "x$ac_cv_omx_target" = "xrpi")
+
+AC_ARG_WITH([omx-struct-packing],
+        AS_HELP_STRING([--with-omx-struct-packing],[Force OpenMAX struct packing, (default is none)]),
+        [ac_cv_omx_struct_packing="$withval"], [ac_cv_omx_struct_packing="none"])
+
+if test x"$ac_cv_omx_struct_packing" != x"none"; then
+  AC_MSG_NOTICE([Using $ac_cv_omx_struct_packing as OpenMAX struct packing])
+  AC_DEFINE_UNQUOTED(GST_OMX_STRUCT_PACKING, $ac_cv_omx_struct_packing, [The struct packing used for OpenMAX structures])
+elif test x"$ac_cv_omx_target_struct_packing" != x"none"; then
+  AC_MSG_NOTICE([Using $ac_cv_omx_target_struct_packing as OpenMAX struct packing])
+  AC_DEFINE_UNQUOTED(GST_OMX_STRUCT_PACKING, $ac_cv_omx_target_struct_packing, [The struct packing used for OpenMAX structures])
 fi
 
 dnl *** set variables based on configure arguments ***
@@ -368,6 +271,28 @@ dnl set release date/time
 AG_GST_SET_PACKAGE_RELEASE_DATETIME_WITH_NANO([$PACKAGE_VERSION_NANO],
   ["${srcdir}/gst-omx.doap"],
   [$PACKAGE_VERSION_MAJOR.$PACKAGE_VERSION_MINOR.$PACKAGE_VERSION_MICRO])
+
+dnl build static plugins or not
+AC_MSG_CHECKING([whether to build static plugins or not])
+AC_ARG_ENABLE(
+  static-plugins,
+  AC_HELP_STRING(
+    [--enable-static-plugins],
+    [build static plugins @<:@default=no@:>@]),
+  [AS_CASE(
+    [$enableval], [no], [], [yes], [],
+    [AC_MSG_ERROR([bad value "$enableval" for --enable-static-plugins])])],
+  [enable_static_plugins=no])
+AC_MSG_RESULT([$enable_static_plugins])
+if test "x$enable_static_plugins" = xyes; then
+  AC_DEFINE(GST_PLUGIN_BUILD_STATIC, 1,
+    [Define if static plugins should be built])
+  GST_PLUGIN_LIBTOOLFLAGS=""
+else
+  GST_PLUGIN_LIBTOOLFLAGS="--tag=disable-static"
+fi
+AC_SUBST(GST_PLUGIN_LIBTOOLFLAGS)
+AM_CONDITIONAL(GST_PLUGIN_BUILD_STATIC, test "x$enable_static_plugins" = "xyes")
 
 dnl define an ERROR_CFLAGS Makefile variable
 AG_GST_SET_ERROR_CFLAGS($FATAL_WARNINGS, [
@@ -386,6 +311,12 @@ dnl *** plug-ins to include ***
 
 dnl these are all the gst plug-ins, compilable without additional libs
 AG_GST_CHECK_PLUGIN(omx)
+
+dnl check for gstreamer core features (subsystems)
+dnl FIXME: this assumes srcdir == builddir for uninstalled setups
+GST_CONFIGPATH=`$PKG_CONFIG --variable=includedir gstreamer-$GST_API_VERSION`"/gst/gstconfig.h"
+AG_GST_PARSE_SUBSYSTEM_DISABLES($GST_CONFIGPATH)
+dnl AM_CONDITIONAL(USE_FOO, test $GST_DISABLE_FOO != "1")
 
 dnl *** finalize CFLAGS, LDFLAGS, LIBS
 
@@ -445,9 +376,6 @@ dnl whatevertarget_LIBS and -L flags here affect the rest of the linking
 GST_PLUGIN_LDFLAGS="-module -avoid-version -export-symbols-regex '^[_]*gst_plugin_.*' $GST_ALL_LDFLAGS"
 AC_SUBST(GST_PLUGIN_LDFLAGS)
 
-AS_AC_EXPAND(GST_OMX_CONFIG_DIR, ${sysconfdir}/xdg)
-AC_DEFINE_UNQUOTED(GST_OMX_CONFIG_DIR, "$GST_OMX_CONFIG_DIR", [gst-omx configuration directory])
-
 dnl *** output files ***
 
 AC_CONFIG_FILES(
@@ -459,14 +387,9 @@ tools/Makefile
 config/Makefile
 config/bellagio/Makefile
 config/rpi/Makefile
-config/tizonia/gstomx.conf
-config/tizonia/Makefile
-config/zynqultrascaleplus/Makefile
 examples/Makefile
 examples/egl/Makefile
 m4/Makefile
-tests/Makefile
-tests/check/Makefile
 )
 
 AC_OUTPUT

@@ -46,6 +46,24 @@ G_BEGIN_DECLS
 #define GST_IS_OMX_VIDEO_DEC_CLASS(obj) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_OMX_VIDEO_DEC))
 
+#ifdef __LINUX_MEDIA_NAS__
+#define OMX_realtek_android_index_notifyVeScaling            0x7FFF0106
+#define OMX_realtek_android_index_skipNonRefFrame            0x7FFF0107
+#define GST_OMX_OUTPUT_WIDTH_INVALID 0
+#define GST_OMX_OUTPUT_HEIGHT_INVALID 0
+#define GST_OMX_OUTPUT_FPS_INVALID 0
+#define GST_OMX_OUTPUT_FPS_MIN 24
+#define GST_OMX_OUTPUT_FPS_MAX 60
+#define GST_OMX_OUTPUT_AUTORISIZE_LEN_MAX 5
+#define GST_OMX_OUTPUT_AUTORISIZE_DAFAULT "NONE"
+#define GST_OMX_OUTPUT_AUTORISIZE_FHD_WIDTH 1920
+#define GST_OMX_OUTPUT_AUTORISIZE_FHD_HEIGHT 1080
+#define GST_OMX_OUTPUT_AUTORISIZE_HD_WIDTH 1280
+#define GST_OMX_OUTPUT_AUTORISIZE_HD_HEIGHT 720
+#define GST_OMX_OUTPUT_AUTORISIZE_SD_WIDTH 852
+#define GST_OMX_OUTPUT_AUTORISIZE_SD_HEIGHT 480
+#endif
+
 typedef struct _GstOMXVideoDec GstOMXVideoDec;
 typedef struct _GstOMXVideoDecClass GstOMXVideoDecClass;
 
@@ -56,7 +74,7 @@ struct _GstOMXVideoDec
   /* < protected > */
   GstOMXComponent *dec;
   GstOMXPort *dec_in_port, *dec_out_port;
-  
+
   GstBufferPool *in_port_pool, *out_port_pool;
 
   /* < private > */
@@ -65,8 +83,6 @@ struct _GstOMXVideoDec
   /* TRUE if the component is configured and saw
    * the first buffer */
   gboolean started;
-   /* TRUE if the ports where disabled after being activated the first time. */
-  gboolean disabled;
 
   GstClockTime last_upstream_ts;
 
@@ -74,31 +90,24 @@ struct _GstOMXVideoDec
   GMutex drain_lock;
   GCond drain_cond;
   /* TRUE if EOS buffers shouldn't be forwarded */
-  gboolean draining; /* protected by drain_lock */
+  gboolean draining;
 
   GstFlowReturn downstream_flow_ret;
-  /* Initially FALSE. Switched to TRUE when all requirements
-   * are met to try setting up the decoder with OMX_UseBuffer.
-   * Switched to FALSE if this trial fails so that the decoder
-   * can fallback to OMX_AllocateBuffer. */
-  gboolean use_buffers;
-
-#if defined (USE_OMX_TARGET_RPI)
+#ifdef USE_OMX_TARGET_RPI
   GstOMXComponent *egl_render;
   GstOMXPort *egl_in_port, *egl_out_port;
-#endif
-
-#if defined (HAVE_GST_GL)
   gboolean eglimage;
 #endif
 
-  /* TRUE if decoder is producing dmabuf */
-  gboolean dmabuf;
-  GstOMXBufferAllocation input_allocation;
-
-  /* properties */
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-  guint32 internal_entropy_buffers;
+#ifdef __LINUX_MEDIA_NAS__
+  gboolean bitstream_statistics;
+  struct timeval timestamp;
+  guint32 max_data;
+  guint32 min_data;
+  gfloat avg_data;
+  guint32 data_count;
+  guint32 data_total_count;
+  guint32 data_total_duration;
 #endif
 };
 
@@ -110,9 +119,15 @@ struct _GstOMXVideoDecClass
 
   gboolean (*is_format_change) (GstOMXVideoDec * self, GstOMXPort * port, GstVideoCodecState * state);
   gboolean (*set_format)       (GstOMXVideoDec * self, GstOMXPort * port, GstVideoCodecState * state);
+  GstFlowReturn (*prepare_frame)   (GstOMXVideoDec * self, GstVideoCodecFrame *frame);
 };
 
 GType gst_omx_video_dec_get_type (void);
+
+#ifdef __LINUX_MEDIA_NAS__
+void
+gst_omx_dec_calculate_output_resolution (gchar *autoResize, guint *outWidth, guint *outHeight);
+#endif
 
 G_END_DECLS
 

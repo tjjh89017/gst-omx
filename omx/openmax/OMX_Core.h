@@ -33,14 +33,12 @@
 extern "C" {
 #endif /* __cplusplus */
 
-
 /* Each OMX header shall include all required header files to allow the
  *  header to compile without errors.  The includes below are required
  *  for this header file to compile successfully 
  */
 
 #include <OMX_Index.h>
-
 
 /** The OMX_COMMANDTYPE enumeration is used to specify the action in the
  *  OMX_SendCommand macro.  
@@ -57,8 +55,6 @@ typedef enum OMX_COMMANDTYPE
     OMX_CommandVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_CommandMax = 0X7FFFFFFF
 } OMX_COMMANDTYPE;
-
-
 
 /** The OMX_STATETYPE enumeration is used to indicate or change the component
  *  state.  This enumeration reflects the current state of the component when
@@ -325,8 +321,6 @@ typedef struct OMX_PARAM_COMPONENTROLETYPE {
 
 #define OMX_BUFFERFLAG_STARTTIME 0x00000002
 
- 
-
 /** Decode Only Buffer Flag: 
  *
  * The source of a stream (e.g. a demux component) sets the DECODEONLY
@@ -347,7 +341,6 @@ typedef struct OMX_PARAM_COMPONENTROLETYPE {
  */
 
 #define OMX_BUFFERFLAG_DECODEONLY 0x00000004
-
 
 /* Data Corrupt Flag: This flag is set when the IL client believes the data in the associated buffer is corrupt 
  * @ingroup buf
@@ -391,8 +384,6 @@ typedef struct OMX_PARAM_COMPONENTROLETYPE {
  * @ingroup buf
  */
 #define OMX_BUFFERFLAG_CODECCONFIG 0x00000080
-
-
 
 /** @ingroup buf */
 typedef struct OMX_BUFFERHEADERTYPE
@@ -456,7 +447,6 @@ typedef enum OMX_EXTRADATATYPE
    OMX_ExtraDataVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
    OMX_ExtraDataMax = 0x7FFFFFFF
 } OMX_EXTRADATATYPE;
-
 
 typedef struct OMX_OTHER_EXTRADATATYPE  {
     OMX_U32 nSize;
@@ -608,7 +598,6 @@ typedef enum OMX_BUFFERSUPPLIERTYPE
     OMX_BufferSupplyMax = 0x7FFFFFFF
 } OMX_BUFFERSUPPLIERTYPE;
 
-
 /** buffer supplier parameter 
  * @ingroup tun
  */
@@ -619,13 +608,11 @@ typedef struct OMX_PARAM_BUFFERSUPPLIERTYPE {
     OMX_BUFFERSUPPLIERTYPE eBufferSupplier; /**< buffer supplier */
 } OMX_PARAM_BUFFERSUPPLIERTYPE;
 
-
 /**< indicates that buffers received by an input port of a tunnel 
      may not modify the data in the buffers 
      @ingroup tun
  */
 #define OMX_PORTTUNNELFLAG_READONLY 0x00000001 
-
 
 /** The OMX_TUNNELSETUPTYPE structure is used to pass data from an output
     port to an input port as part the two ComponentTunnelRequest calls
@@ -694,7 +681,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         pSpecVersion,                                       \
         pComponentUUID)                 /* Macro End */
 
-
 /** Send a command to the component.  This call is a non-blocking call.
     The component should check the parameters and then queue the command
     to the component thread to be executed.  The component thread shall 
@@ -753,7 +739,6 @@ typedef struct OMX_TUNNELSETUPTYPE
          nParam,                                            \
          pCmdData)                          /* Macro End */
 
-
 /** The OMX_GetParameter macro will get one of the current parameter 
     settings from the component.  This macro cannot only be invoked when 
     the component is in the OMX_StateInvalid state.  The nParamIndex
@@ -791,7 +776,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         hComponent,                                         \
         nParamIndex,                                        \
         pComponentParameterStructure)    /* Macro End */
-
 
 /** The OMX_SetParameter macro will send an initialization parameter
     structure to a component.  Each structure shall be sent one at a time,
@@ -831,7 +815,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         nParamIndex,                                        \
         pComponentParameterStructure)    /* Macro End */
 
-
 /** The OMX_GetConfig macro will get one of the configuration structures 
     from a component.  This macro can be invoked anytime after the 
     component has been loaded.  The nParamIndex call parameter is used to 
@@ -866,7 +849,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         hComponent,                                         \
         nConfigIndex,                                       \
         pComponentConfigStructure)       /* Macro End */
-
 
 /** The OMX_SetConfig macro will send one of the configuration 
     structures to a component.  Each structure shall be sent one at a time,
@@ -903,7 +885,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         nConfigIndex,                                       \
         pComponentConfigStructure)       /* Macro End */
 
-
 /** The OMX_GetExtensionIndex macro will invoke a component to translate 
     a vendor specific configuration or parameter string into an OMX 
     structure index.  There is no requirement for the vendor to support 
@@ -937,7 +918,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         cParameterName,                                     \
         pIndexType)                     /* Macro End */
 
-
 /** The OMX_GetState macro will invoke the component to get the current 
     state of the component and place the state value into the location
     pointed to by pState.  
@@ -961,7 +941,6 @@ typedef struct OMX_TUNNELSETUPTYPE
     ((OMX_COMPONENTTYPE*)hComponent)->GetState(             \
         hComponent,                                         \
         pState)                         /* Macro End */
-
 
 /** The OMX_UseBuffer macro will request that the component use
     a buffer (and allocate its own buffer header) already allocated 
@@ -996,7 +975,6 @@ typedef struct OMX_TUNNELSETUPTYPE
            pAppPrivate,                                     \
            nSizeBytes,                                      \
            pBuffer)
-
 
 /** The OMX_AllocateBuffer macro will request that the component allocate 
     a new buffer and buffer header.  The component will allocate the 
@@ -1038,7 +1016,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         pAppPrivate,                                        \
         nSizeBytes)                     /* Macro End */
 
-
 /** The OMX_FreeBuffer macro will release a buffer header from the component
     which was allocated using either OMX_AllocateBuffer or OMX_UseBuffer. If  
     the component allocated the buffer (see the OMX_UseBuffer macro) then 
@@ -1070,7 +1047,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         nPortIndex,                                         \
         pBuffer)                        /* Macro End */
 
-
 /** The OMX_EmptyThisBuffer macro will send a buffer full of data to an 
     input port of a component.  The buffer will be emptied by the component
     and returned to the application via the EmptyBufferDone call back.
@@ -1100,7 +1076,6 @@ typedef struct OMX_TUNNELSETUPTYPE
         hComponent,                                         \
         pBuffer)                        /* Macro End */
 
-
 /** The OMX_FillThisBuffer macro will send an empty buffer to an 
     output port of a component.  The buffer will be filled by the component
     and returned to the application via the FillBufferDone call back.
@@ -1129,8 +1104,6 @@ typedef struct OMX_TUNNELSETUPTYPE
     ((OMX_COMPONENTTYPE*)hComponent)->FillThisBuffer(       \
         hComponent,                                         \
         pBuffer)                        /* Macro End */
-
-
 
 /** The OMX_UseEGLImage macro will request that the component use
     a EGLImage provided by EGL (and allocate its own buffer header)
@@ -1188,7 +1161,6 @@ typedef struct OMX_TUNNELSETUPTYPE
  */
 OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_Init(void);
 
-
 /** The OMX_Deinit method is used to deinitialize the OMX core.  It shall be 
     the last call made into OMX. In the event that the core determines that 
     thare are components loaded when this call is made, the core may return 
@@ -1202,7 +1174,6 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_Init(void);
     @ingroup core
  */
 OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_Deinit(void);
-
 
 /** The OMX_ComponentNameEnum method will enumerate through all the names of
     recognised valid components in the system. This function is provided
@@ -1246,7 +1217,6 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_ComponentNameEnum(
     OMX_IN  OMX_U32 nNameLength,
     OMX_IN  OMX_U32 nIndex);
 
-
 /** The OMX_GetHandle method will locate the component specified by the
     component name given, load that component into memory and then invoke
     the component's methods to create an instance of the component.  
@@ -1280,7 +1250,6 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_GetHandle(
     OMX_IN  OMX_PTR pAppData,
     OMX_IN  OMX_CALLBACKTYPE* pCallBacks);
 
-
 /** The OMX_FreeHandle method will free a handle allocated by the OMX_GetHandle 
     method.  If the component reference count goes to zero, the component will
     be unloaded from memory.  
@@ -1298,8 +1267,6 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_GetHandle(
  */
 OMX_API OMX_ERRORTYPE OMX_APIENTRY OMX_FreeHandle(
     OMX_IN  OMX_HANDLETYPE hComponent);
-
-
 
 /** The OMX_SetupTunnel method will handle the necessary calls to the components
     to setup the specified tunnel the two components.  NOTE: This is
@@ -1428,4 +1395,3 @@ OMX_API OMX_ERRORTYPE OMX_GetRolesOfComponent (
 
 #endif
 /* File EOF */
-

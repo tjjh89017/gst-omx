@@ -58,4 +58,3 @@ GType gst_omx_analog_audio_sink_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_ANALOG_AUDIO_SINK_H__ */
-

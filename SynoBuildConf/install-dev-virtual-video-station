@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if ! checkPlatformFunction SYNO_PLAT_TRANSCODE_FOR_RTD1296; then
+	SkipThisProject
+	return
+fi
+
+make DESTDIR=$DebDevDir install
+

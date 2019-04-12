@@ -34,10 +34,6 @@
 
 G_BEGIN_DECLS
 
-/* Keep synced with gst_omx_video_get_format_from_omx(). Sort by decreasing quality */
-#define GST_OMX_VIDEO_SUPPORTED_FORMATS "{ NV16_10LE32, NV12_10LE32, " \
-  "NV16, YUY2, YVYU, UYVY, NV12, I420, RGB16, BGR16, ABGR, ARGB, BGR, GRAY8 }"
-
 typedef struct
 {
   GstVideoFormat format;
@@ -58,10 +54,6 @@ gst_omx_video_negotiation_map_free (GstOMXVideoNegotiationMap * m);
 
 GstVideoCodecFrame *
 gst_omx_video_find_nearest_frame (GstOMXBuffer * buf, GList * frames);
-
-OMX_U32 gst_omx_video_calculate_framerate_q16 (GstVideoInfo * info);
-
-gboolean gst_omx_video_is_equal_framerate_q16 (OMX_U32 q16_a, OMX_U32 q16_b);
 
 G_END_DECLS
 

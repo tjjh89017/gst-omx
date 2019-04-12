@@ -51,11 +51,13 @@ struct _GstOMXH264Enc
 #endif
   guint32 periodicty_idr;
   guint32 interval_intraframes;
-  guint32 b_frames;
-  guint32 entropy_mode;
-  gboolean constrained_intra_prediction;
-  guint32 loop_filter_mode;
-
+#ifdef __LINUX_MEDIA_NAS__
+  guint32 bitrate;
+  guint32 control_rate;
+  gboolean interlace;
+  guint32 rotation;
+  guint32 i_frame_interval;
+#endif
   GList *headers;
 };
 
@@ -69,4 +71,3 @@ GType gst_omx_h264_enc_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_H264_ENC_H__ */
-

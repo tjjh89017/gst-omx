@@ -45,6 +45,12 @@ typedef struct _GstOMXMPEG4VideoDecClass GstOMXMPEG4VideoDecClass;
 struct _GstOMXMPEG4VideoDec
 {
   GstOMXVideoDec parent;
+#ifdef __LINUX_MEDIA_NAS__
+    guint width;
+    guint height;
+    guint fps;
+    gchar autoResize[GST_OMX_OUTPUT_AUTORISIZE_LEN_MAX];
+#endif
 };
 
 struct _GstOMXMPEG4VideoDecClass
@@ -57,4 +63,3 @@ GType gst_omx_mpeg4_video_dec_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_MPEG4_VIDEO_DEC_H__ */
-

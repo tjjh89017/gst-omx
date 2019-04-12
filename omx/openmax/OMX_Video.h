@@ -39,7 +39,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-
 /**
  * Each OMX header must include all required header files to allow the
  * header to compile without errors.  The includes below are required
@@ -47,7 +46,6 @@ extern "C" {
  */
 
 #include <OMX_IVCommon.h>
-
 
 /**
  * Enumeration used to define the possible video compression codings.  
@@ -72,7 +70,6 @@ typedef enum OMX_VIDEO_CODINGTYPE {
     OMX_VIDEO_CodingVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_CodingMax = 0x7FFFFFFF
 } OMX_VIDEO_CODINGTYPE;
-
 
 /**
  * Data structure used to define a video path.  The number of Video paths for 
@@ -162,7 +159,6 @@ typedef struct OMX_VIDEO_PARAM_PORTFORMATTYPE {
     OMX_U32 xFramerate;
 } OMX_VIDEO_PARAM_PORTFORMATTYPE;
 
-
 /**
  * This is a structure for configuring video compression quantization 
  * parameter values.  Codecs may support different QP values for different
@@ -184,7 +180,6 @@ typedef struct OMX_VIDEO_PARAM_QUANTIZATIONTYPE {
     OMX_U32 nQpP;
     OMX_U32 nQpB;
 } OMX_VIDEO_PARAM_QUANTIZATIONTYPE;
-
 
 /** 
  * Structure for configuration of video fast update parameters. 
@@ -209,7 +204,6 @@ typedef struct OMX_VIDEO_PARAM_VIDEOFASTUPDATETYPE {
     OMX_U32 nNumMBs;                                  
 } OMX_VIDEO_PARAM_VIDEOFASTUPDATETYPE;
 
-
 /** 
  * Enumeration of possible bitrate control types 
  */
@@ -223,7 +217,6 @@ typedef enum OMX_VIDEO_CONTROLRATETYPE {
     OMX_Video_ControlRateVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_Video_ControlRateMax = 0x7FFFFFFF
 } OMX_VIDEO_CONTROLRATETYPE;
-
 
 /** 
  * Structure for configuring bitrate mode of a codec. 
@@ -243,7 +236,6 @@ typedef struct OMX_VIDEO_PARAM_BITRATETYPE {
     OMX_U32 nTargetBitrate;                 
 } OMX_VIDEO_PARAM_BITRATETYPE;
 
-
 /** 
  * Enumeration of possible motion vector (MV) types 
  */
@@ -256,7 +248,6 @@ typedef enum OMX_VIDEO_MOTIONVECTORTYPE {
     OMX_Video_MotionVectorVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_Video_MotionVectorMax = 0x7FFFFFFF
 } OMX_VIDEO_MOTIONVECTORTYPE;
-
 
 /**
  * Structure for configuring the number of motion vectors used as well
@@ -283,7 +274,6 @@ typedef struct OMX_VIDEO_PARAM_MOTIONVECTORTYPE {
     OMX_S32 sYSearchRange;
 } OMX_VIDEO_PARAM_MOTIONVECTORTYPE;
 
-
 /** 
  * Enumeration of possible methods to use for Intra Refresh 
  */
@@ -295,7 +285,6 @@ typedef enum OMX_VIDEO_INTRAREFRESHTYPE {
     OMX_VIDEO_IntraRefreshVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_IntraRefreshMax = 0x7FFFFFFF
 } OMX_VIDEO_INTRAREFRESHTYPE;
-
 
 /**
  * Structure for configuring intra refresh mode 
@@ -321,7 +310,6 @@ typedef struct OMX_VIDEO_PARAM_INTRAREFRESHTYPE {
     OMX_U32 nAirRef;
     OMX_U32 nCirMBs;
 } OMX_VIDEO_PARAM_INTRAREFRESHTYPE;
-
 
 /**
  * Structure for enabling various error correction methods for video 
@@ -350,7 +338,6 @@ typedef struct OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE {
     OMX_BOOL bEnableRVLC;
 } OMX_VIDEO_PARAM_ERRORCORRECTIONTYPE;
 
-
 /** 
  * Configuration of variable block-size motion compensation (VBSMC) 
  * 
@@ -378,7 +365,6 @@ typedef struct OMX_VIDEO_PARAM_VBSMCTYPE {
     OMX_BOOL b4x8;
     OMX_BOOL b4x4;
 } OMX_VIDEO_PARAM_VBSMCTYPE;
-
 
 /** 
  * H.263 profile types, each profile indicates support for various 
@@ -419,7 +405,6 @@ typedef enum OMX_VIDEO_H263PROFILETYPE {
     OMX_VIDEO_H263ProfileMax                 = 0x7FFFFFFF  
 } OMX_VIDEO_H263PROFILETYPE;
 
-
 /** 
  * H.263 level types, each level indicates support for various frame sizes, 
  * bit rates, decoder frame rates.
@@ -437,7 +422,6 @@ typedef enum OMX_VIDEO_H263LEVELTYPE {
     OMX_VIDEO_H263LevelVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_H263LevelMax = 0x7FFFFFFF  
 } OMX_VIDEO_H263LEVELTYPE;
-
 
 /** 
  * Specifies the picture type. These values should be OR'd to signal all 
@@ -462,7 +446,6 @@ typedef enum OMX_VIDEO_PICTURETYPE {
     OMX_VIDEO_PictureTypeVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_PictureTypeMax = 0x7FFFFFFF
 } OMX_VIDEO_PICTURETYPE;
-
 
 /** 
  * H.263 Params 
@@ -505,7 +488,6 @@ typedef struct OMX_VIDEO_PARAM_H263TYPE {
     OMX_U32 nGOBHeaderInterval;
 } OMX_VIDEO_PARAM_H263TYPE;
 
-
 /** 
  * MPEG-2 profile types, each profile indicates support for various 
  * performance bounds and different annexes.
@@ -522,7 +504,6 @@ typedef enum OMX_VIDEO_MPEG2PROFILETYPE {
     OMX_VIDEO_MPEG2ProfileMax = 0x7FFFFFFF  
 } OMX_VIDEO_MPEG2PROFILETYPE;
 
-
 /** 
  * MPEG-2 level types, each level indicates support for various frame 
  * sizes, bit rates, decoder frame rates.  No need 
@@ -536,7 +517,6 @@ typedef enum OMX_VIDEO_MPEG2LEVELTYPE {
     OMX_VIDEO_MPEG2LevelVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_MPEG2LevelMax = 0x7FFFFFFF  
 } OMX_VIDEO_MPEG2LEVELTYPE;
-
 
 /** 
  * MPEG-2 params 
@@ -559,7 +539,6 @@ typedef struct OMX_VIDEO_PARAM_MPEG2TYPE {
     OMX_VIDEO_MPEG2PROFILETYPE eProfile;
 	OMX_VIDEO_MPEG2LEVELTYPE eLevel;   
 } OMX_VIDEO_PARAM_MPEG2TYPE;
-
 
 /** 
  * MPEG-4 profile types, each profile indicates support for various 
@@ -604,7 +583,6 @@ typedef enum OMX_VIDEO_MPEG4PROFILETYPE {
     OMX_VIDEO_MPEG4ProfileMax              = 0x7FFFFFFF  
 } OMX_VIDEO_MPEG4PROFILETYPE;
 
-
 /** 
  * MPEG-4 level types, each level indicates support for various frame 
  * sizes, bit rates, decoder frame rates.  No need 
@@ -622,7 +600,6 @@ typedef enum OMX_VIDEO_MPEG4LEVELTYPE {
     OMX_VIDEO_MPEG4LevelVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_MPEG4LevelMax = 0x7FFFFFFF  
 } OMX_VIDEO_MPEG4LEVELTYPE;
-
 
 /** 
  * MPEG-4 configuration.  This structure handles configuration options
@@ -672,7 +649,6 @@ typedef struct OMX_VIDEO_PARAM_MPEG4TYPE {
     OMX_BOOL bReversibleVLC;
 } OMX_VIDEO_PARAM_MPEG4TYPE;
 
-
 /** 
  * WMV Versions 
  */
@@ -685,7 +661,6 @@ typedef enum OMX_VIDEO_WMVFORMATTYPE {
     OMX_VIDEO_WMFFormatVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_WMVFormatMax    = 0x7FFFFFFF
 } OMX_VIDEO_WMVFORMATTYPE;
-
 
 /** 
  * WMV Params 
@@ -703,7 +678,6 @@ typedef struct OMX_VIDEO_PARAM_WMVTYPE {
     OMX_VIDEO_WMVFORMATTYPE eFormat;
 } OMX_VIDEO_PARAM_WMVTYPE;
 
-
 /** 
  * Real Video Version 
  */
@@ -716,7 +690,6 @@ typedef enum OMX_VIDEO_RVFORMATTYPE {
     OMX_VIDEO_RVFormatVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_RVFormatMax = 0x7FFFFFFF
 } OMX_VIDEO_RVFORMATTYPE;
-
 
 /** 
  * Real Video Params 
@@ -758,7 +731,6 @@ typedef struct OMX_VIDEO_PARAM_RVTYPE {
     OMX_BOOL bEnableLatencyMode;
 } OMX_VIDEO_PARAM_RVTYPE;
 
-
 /** 
  * AVC profile types, each profile indicates support for various 
  * performance bounds and different annexes.
@@ -775,7 +747,6 @@ typedef enum OMX_VIDEO_AVCPROFILETYPE {
     OMX_VIDEO_AVCProfileVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_AVCProfileMax      = 0x7FFFFFFF  
 } OMX_VIDEO_AVCPROFILETYPE;
-
 
 /** 
  * AVC level types, each level indicates support for various frame sizes, 
@@ -803,7 +774,6 @@ typedef enum OMX_VIDEO_AVCLEVELTYPE {
     OMX_VIDEO_AVCLevelMax = 0x7FFFFFFF  
 } OMX_VIDEO_AVCLEVELTYPE;
 
-
 /** 
  * AVC loop filter modes 
  *
@@ -819,7 +789,6 @@ typedef enum OMX_VIDEO_AVCLOOPFILTERTYPE {
     OMX_VIDEO_AVCLoopFilterVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_AVCLoopFilterMax = 0x7FFFFFFF
 } OMX_VIDEO_AVCLOOPFILTERTYPE;
-
 
 /** 
  * AVC params 
@@ -1057,4 +1026,3 @@ typedef struct OMX_VIDEO_CONFIG_NALSIZE {
 
 #endif
 /* File EOF */
-

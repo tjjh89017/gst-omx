@@ -34,8 +34,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-
-
 /* Each OMX header must include all required header files to allow the
  *  header to compile without errors.  The includes below are required
  *  for this header file to compile successfully 
@@ -159,7 +157,6 @@ typedef struct OMX_RESOURCECONCEALMENTTYPE {
                                             lower resource consumption or functional bypass) 
                                             on a component as a resolution to resource conflicts. */
 } OMX_RESOURCECONCEALMENTTYPE;
-
 
 /** @ingroup metadata */
 typedef enum OMX_METADATACHARSETTYPE {
@@ -358,7 +355,6 @@ typedef struct OMX_COMPONENTTYPE
             OMX_IN  OMX_INDEXTYPE nParamIndex,  
             OMX_INOUT OMX_PTR pComponentParameterStructure);
 
-
     /** refer to OMX_SetParameter in OMX_core.h or the OMX IL 
         specification for details on the SetParameter method.
      */
@@ -366,7 +362,6 @@ typedef struct OMX_COMPONENTTYPE
             OMX_IN  OMX_HANDLETYPE hComponent, 
             OMX_IN  OMX_INDEXTYPE nIndex,
             OMX_IN  OMX_PTR pComponentParameterStructure);
-
 
     /** refer to OMX_GetConfig in OMX_core.h or the OMX IL 
         specification for details on the GetConfig method.
@@ -376,7 +371,6 @@ typedef struct OMX_COMPONENTTYPE
             OMX_IN  OMX_INDEXTYPE nIndex, 
             OMX_INOUT OMX_PTR pComponentConfigStructure);
 
-
     /** refer to OMX_SetConfig in OMX_core.h or the OMX IL 
         specification for details on the SetConfig method.
      */
@@ -384,7 +378,6 @@ typedef struct OMX_COMPONENTTYPE
             OMX_IN  OMX_HANDLETYPE hComponent,
             OMX_IN  OMX_INDEXTYPE nIndex, 
             OMX_IN  OMX_PTR pComponentConfigStructure);
-
 
     /** refer to OMX_GetExtensionIndex in OMX_core.h or the OMX IL 
         specification for details on the GetExtensionIndex method.
@@ -394,7 +387,6 @@ typedef struct OMX_COMPONENTTYPE
             OMX_IN  OMX_STRING cParameterName,
             OMX_OUT OMX_INDEXTYPE* pIndexType);
 
-
     /** refer to OMX_GetState in OMX_core.h or the OMX IL 
         specification for details on the GetState method.
      */
@@ -402,7 +394,6 @@ typedef struct OMX_COMPONENTTYPE
             OMX_IN  OMX_HANDLETYPE hComponent,
             OMX_OUT OMX_STATETYPE* pState);
 
-    
     /** The ComponentTunnelRequest method will interact with another OMX
         component to determine if tunneling is possible and to setup the
         tunneling.  The return codes for this method can be used to 

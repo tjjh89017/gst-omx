@@ -68,7 +68,7 @@ gst_omx_amr_dec_class_init (GstOMXAMRDecClass * klass)
 
   gst_element_class_set_static_metadata (element_class,
       "OpenMAX AMR Audio Decoder",
-      "Codec/Decoder/Audio/Hardware",
+      "Codec/Decoder/Audio",
       "Decode AMR audio streams",
       "Sebastian Dröge <sebastian@centricular.com>");
 
@@ -210,7 +210,6 @@ gst_omx_amr_dec_get_channel_positions (GstOMXAudioDec * dec,
         gst_omx_error_to_string (err), err);
     return FALSE;
   }
-
 
   g_return_val_if_fail (pcm_param.nChannels == 1, FALSE);       /* AMR supports only mono */
 

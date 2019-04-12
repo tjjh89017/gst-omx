@@ -25,20 +25,42 @@
 #include <gst/gst.h>
 
 #include "gstomxh264dec.h"
-#include "gstomxh264utils.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_omx_h264_dec_debug_category);
 #define GST_CAT_DEFAULT gst_omx_h264_dec_debug_category
+#ifdef __LINUX_MEDIA_NAS__
+#define GST_OMX_H264_OUTPUT_WIDTH_MAX 4096
+#define GST_OMX_H264_OUTPUT_WIDTH_MIN 240
+#define GST_OMX_H264_OUTPUT_HEIGHT_MAX 2160
+#define GST_OMX_H264_OUTPUT_HEIGHT_MIN 135
+#define GST_OMX_H264_OUTPUT_TURBOMODE_DISABLE 0
+#define GST_OMX_H264_OUTPUT_TURBOMODE_ENABLE 1
+#endif
 
 /* prototypes */
 static gboolean gst_omx_h264_dec_is_format_change (GstOMXVideoDec * dec,
     GstOMXPort * port, GstVideoCodecState * state);
 static gboolean gst_omx_h264_dec_set_format (GstOMXVideoDec * dec,
     GstOMXPort * port, GstVideoCodecState * state);
+#ifdef __LINUX_MEDIA_NAS__
+static void gst_omx_h264_dec_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec);
+static void gst_omx_h264_dec_get_property (GObject * object, guint prop_id,
+    GValue * value, GParamSpec * pspec);
+static void gst_omx_h264_dec_set_scaling (GstOMXVideoDec * self);
+static void gst_omx_h264_dec_set_turboMode (GstOMXVideoDec * dec);
+#endif
 
 enum
 {
-  PROP_0
+  PROP_0,
+#ifdef __LINUX_MEDIA_NAS__
+  PROP_WIDTH,
+  PROP_HEIGHT,
+  PROP_FPS,
+  PROP_TURBOMODE,
+  PROP_AUTORESIZE
+#endif
 };
 
 /* class initialization */
@@ -55,21 +77,62 @@ gst_omx_h264_dec_class_init (GstOMXH264DecClass * klass)
 {
   GstOMXVideoDecClass *videodec_class = GST_OMX_VIDEO_DEC_CLASS (klass);
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
 
   videodec_class->is_format_change =
       GST_DEBUG_FUNCPTR (gst_omx_h264_dec_is_format_change);
   videodec_class->set_format = GST_DEBUG_FUNCPTR (gst_omx_h264_dec_set_format);
 
   videodec_class->cdata.default_sink_template_caps = "video/x-h264, "
+      "parsed=(boolean) true, "
       "alignment=(string) au, "
       "stream-format=(string) byte-stream, "
       "width=(int) [1,MAX], " "height=(int) [1,MAX]";
 
   gst_element_class_set_static_metadata (element_class,
       "OpenMAX H.264 Video Decoder",
-      "Codec/Decoder/Video/Hardware",
+      "Codec/Decoder/Video",
       "Decode H.264 video streams",
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
+
+#ifdef __LINUX_MEDIA_NAS__
+  gobject_class->set_property = gst_omx_h264_dec_set_property;
+  gobject_class->get_property = gst_omx_h264_dec_get_property;
+
+  g_object_class_install_property (gobject_class, PROP_WIDTH,
+      g_param_spec_uint ("width", "width",
+          "video width of decode output port",
+          GST_OMX_H264_OUTPUT_WIDTH_MIN, GST_OMX_H264_OUTPUT_WIDTH_MAX,
+          GST_OMX_H264_OUTPUT_WIDTH_MIN,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_HEIGHT,
+      g_param_spec_uint ("height", "height",
+          "video height of decode output port",
+          GST_OMX_H264_OUTPUT_HEIGHT_MIN, GST_OMX_H264_OUTPUT_HEIGHT_MAX,
+          GST_OMX_H264_OUTPUT_HEIGHT_MIN,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_FPS,
+      g_param_spec_uint ("fps", "fps",
+          "video fps of decode output port",
+          GST_OMX_OUTPUT_FPS_MIN, GST_OMX_OUTPUT_FPS_MAX,
+          GST_OMX_OUTPUT_FPS_MIN, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TURBOMODE,
+      g_param_spec_uint ("turboMode", "turboMode",
+          "Speedup decode performance. Suggest enabling on 4k2k case",
+          GST_OMX_H264_OUTPUT_TURBOMODE_DISABLE,
+          GST_OMX_H264_OUTPUT_TURBOMODE_ENABLE,
+          GST_OMX_H264_OUTPUT_TURBOMODE_DISABLE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+    g_object_class_install_property (gobject_class, PROP_AUTORESIZE,
+      g_param_spec_string ("autoResize", "autoResize",
+          "video output resolution: FHD, HD, SD, NONE",
+          GST_OMX_OUTPUT_AUTORISIZE_DAFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
 
   gst_omx_set_default_role (&videodec_class->cdata, "video_decoder.avc");
 }
@@ -77,6 +140,13 @@ gst_omx_h264_dec_class_init (GstOMXH264DecClass * klass)
 static void
 gst_omx_h264_dec_init (GstOMXH264Dec * self)
 {
+#ifdef __LINUX_MEDIA_NAS__
+  self->width = GST_OMX_OUTPUT_WIDTH_INVALID;
+  self->height = GST_OMX_OUTPUT_HEIGHT_INVALID;
+  self->fps = GST_OMX_OUTPUT_FPS_INVALID;
+  self->turboMode = GST_OMX_H264_OUTPUT_TURBOMODE_DISABLE;
+  strcpy(self->autoResize, GST_OMX_OUTPUT_AUTORISIZE_DAFAULT);
+#endif
 }
 
 static gboolean
@@ -112,81 +182,213 @@ gst_omx_h264_dec_is_format_change (GstOMXVideoDec * dec,
 }
 
 static gboolean
-set_profile_and_level (GstOMXH264Dec * self, GstVideoCodecState * state)
-{
-  OMX_ERRORTYPE err;
-  OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
-  const gchar *profile_string, *level_string;
-  GstStructure *s;
-
-  GST_OMX_INIT_STRUCT (&param);
-  param.nPortIndex = GST_OMX_VIDEO_DEC (self)->dec_in_port->index;
-
-  /* Pass profile and level to the decoder if we have both info from the
-   * caps. */
-  s = gst_caps_get_structure (state->caps, 0);
-  profile_string = gst_structure_get_string (s, "profile");
-  if (!profile_string)
-    return TRUE;
-
-  param.eProfile = gst_omx_h264_utils_get_profile_from_str (profile_string);
-  if (param.eProfile == OMX_VIDEO_AVCProfileMax)
-    goto unsupported_profile;
-
-  level_string = gst_structure_get_string (s, "level");
-  if (!level_string)
-    return TRUE;
-
-  param.eLevel = gst_omx_h264_utils_get_level_from_str (level_string);
-  if (param.eLevel == OMX_VIDEO_AVCLevelMax)
-    goto unsupported_level;
-
-  GST_DEBUG_OBJECT (self, "Set profile (%s) and level (%s) on decoder",
-      profile_string, level_string);
-
-  err =
-      gst_omx_component_set_parameter (GST_OMX_VIDEO_DEC (self)->dec,
-      OMX_IndexParamVideoProfileLevelCurrent, &param);
-  if (err == OMX_ErrorUnsupportedIndex) {
-    GST_WARNING_OBJECT (self,
-        "Setting profile/level not supported by component");
-  } else if (err != OMX_ErrorNone) {
-    GST_ERROR_OBJECT (self,
-        "Error setting profile %u and level %u: %s (0x%08x)",
-        (guint) param.eProfile, (guint) param.eLevel,
-        gst_omx_error_to_string (err), err);
-    return FALSE;
-  }
-
-  return TRUE;
-
-unsupported_profile:
-  GST_ERROR_OBJECT (self, "Unsupported profile %s", profile_string);
-  return FALSE;
-
-unsupported_level:
-  GST_ERROR_OBJECT (self, "Unsupported level %s", level_string);
-  return FALSE;
-}
-
-static gboolean
 gst_omx_h264_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
     GstVideoCodecState * state)
 {
-  GstOMXVideoDecClass *klass = GST_OMX_VIDEO_DEC_GET_CLASS (dec);
+  gboolean ret;
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
-  OMX_ERRORTYPE err;
+#ifdef __LINUX_MEDIA_NAS__
+  GstOMXH264Dec *self = GST_OMX_H264_DEC (dec);
 
-  gst_omx_port_get_port_definition (port, &port_def);
-  port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingAVC;
-  err = gst_omx_port_update_port_definition (port, &port_def);
-  if (err != OMX_ErrorNone)
-    return FALSE;
-
-  if (klass->cdata.hacks & GST_OMX_HACK_PASS_PROFILE_TO_DECODER) {
-    if (!set_profile_and_level (GST_OMX_H264_DEC (dec), state))
-      return FALSE;
+  if(self->fps != 0){
+    state->info.fps_n = self->fps * state->info.fps_d;
   }
 
-  return TRUE;
+#endif
+
+  gst_omx_port_get_port_definition (port, &port_def);
+
+  port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingAVC;
+  ret = gst_omx_port_update_port_definition (port, &port_def) == OMX_ErrorNone;
+
+#ifdef __LINUX_MEDIA_NAS__
+  gst_omx_dec_calculate_output_resolution(self->autoResize, &self->width, &self->height);
+  gst_omx_h264_dec_set_scaling (dec);
+  gst_omx_h264_dec_set_turboMode (dec);
+#endif
+
+  return ret;
 }
+
+#ifdef __LINUX_MEDIA_NAS__
+static void
+gst_omx_h264_dec_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec)
+{
+  GstOMXH264Dec *self = GST_OMX_H264_DEC (object);
+
+  GST_LOG_OBJECT (self, "[%s] set_property <<<<<, property id:%u\n",
+      __FUNCTION__, prop_id);
+
+  switch (prop_id) {
+    case PROP_WIDTH:
+    {
+      guint32 guVal = g_value_get_uint (value);
+
+      if (guVal >= GST_OMX_H264_OUTPUT_WIDTH_MIN
+          && guVal <= GST_OMX_H264_OUTPUT_WIDTH_MAX) {
+        self->width = guVal;
+      } else {
+        GST_FIXME_OBJECT (self, "[%s] Not in range\n", __FUNCTION__);
+      }
+
+      break;
+    }
+    case PROP_HEIGHT:
+    {
+      guint32 guVal = g_value_get_uint (value);
+
+      if (guVal >= GST_OMX_H264_OUTPUT_HEIGHT_MIN
+          && guVal <= GST_OMX_H264_OUTPUT_HEIGHT_MAX) {
+        self->height = guVal;
+      } else {
+        GST_FIXME_OBJECT (self, "[%s] Not in range\n", __FUNCTION__);
+      }
+
+      break;
+    }
+    case PROP_FPS:
+    {
+      guint32 guVal = g_value_get_uint (value);
+
+      if (guVal >= GST_OMX_OUTPUT_FPS_MIN && guVal <= GST_OMX_OUTPUT_FPS_MAX) {
+        self->fps = guVal;
+      } else {
+        GST_FIXME_OBJECT (self, "[%s] Not in range\n", __FUNCTION__);
+      }
+
+      break;
+    }
+    case PROP_TURBOMODE:
+    {
+      guint32 guVal = g_value_get_uint (value);
+
+      if (guVal >= GST_OMX_H264_OUTPUT_TURBOMODE_DISABLE
+          && guVal <= GST_OMX_H264_OUTPUT_TURBOMODE_ENABLE) {
+        self->turboMode = guVal;
+      } else {
+        GST_FIXME_OBJECT (self, "[%s] Not in range\n", __FUNCTION__);
+      }
+      break;
+    }
+    case PROP_AUTORESIZE:
+    {
+      const gchar *gstrVal = g_value_get_string (value);
+
+      if (strcmp(gstrVal, "FHD") == 0) {
+        strcpy(self->autoResize, "FHD");
+      }
+      else if(strcmp(gstrVal, "HD") == 0){
+        strcpy(self->autoResize, "HD");
+      }
+      else if(strcmp(gstrVal, "SD") == 0){
+        strcpy(self->autoResize, "SD");
+      }
+      else if(strcmp(gstrVal, "NONE") == 0){
+        strcpy(self->autoResize, "NONE");
+      } else {
+        GST_FIXME_OBJECT (self, "[%s] Not in range\n", __FUNCTION__);
+      }
+      break;
+    }
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+
+static void
+gst_omx_h264_dec_get_property (GObject * object, guint prop_id, GValue * value,
+    GParamSpec * pspec)
+{
+  GstOMXH264Dec *self = GST_OMX_H264_DEC (object);
+
+  switch (prop_id) {
+    case PROP_WIDTH:
+      g_value_set_uint (value, self->width);
+      break;
+    case PROP_HEIGHT:
+      g_value_set_uint (value, self->height);
+      break;
+    case PROP_FPS:
+      g_value_set_uint (value, self->fps);
+      break;
+    case PROP_TURBOMODE:
+      g_value_set_uint (value, self->turboMode);
+      break;
+    case PROP_AUTORESIZE:
+      g_value_set_string (value, self->autoResize);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+
+static void
+gst_omx_h264_dec_set_scaling (GstOMXVideoDec * dec)
+{
+  GstOMXH264Dec *self = GST_OMX_H264_DEC (dec);
+  guint32 param[4];
+
+  if ((self->width != GST_OMX_OUTPUT_WIDTH_INVALID
+          && self->height != GST_OMX_OUTPUT_HEIGHT_INVALID)
+      || self->fps != GST_OMX_OUTPUT_FPS_INVALID) {
+    param[0] = self->width;
+    param[1] = self->height;
+    param[2] = self->fps;
+    if(strcmp(self->autoResize, "NONE") != 0) {
+        param[3] = 1;
+    } else {
+        param[3] = 0;
+    }
+  } else {
+    param[0] = GST_OMX_OUTPUT_WIDTH_INVALID;
+    param[1] = GST_OMX_OUTPUT_HEIGHT_INVALID;
+    param[2] = GST_OMX_OUTPUT_FPS_INVALID;
+    param[3] = 0;
+  }
+
+  GST_OBJECT_LOCK (self);
+
+  if (dec->dec != NULL) {
+    OMX_ERRORTYPE err;
+
+    err =
+        gst_omx_component_set_parameter (dec->dec,
+        OMX_realtek_android_index_notifyVeScaling, &param);
+
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self, "Failed to set video width/height: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+    }
+  }
+
+  GST_OBJECT_UNLOCK (self);
+
+}
+
+static void
+gst_omx_h264_dec_set_turboMode (GstOMXVideoDec * dec)
+{
+  GstOMXH264Dec *self = GST_OMX_H264_DEC (dec);
+
+  GST_OBJECT_LOCK (self);
+
+  if (dec->dec != NULL) {
+    OMX_ERRORTYPE err;
+
+    err =
+        gst_omx_component_set_parameter (dec->dec,
+        OMX_realtek_android_index_skipNonRefFrame, &self->turboMode);
+
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self, "Failed to set video turbo mode: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+    }
+  }
+
+  GST_OBJECT_UNLOCK (self);
+
+}
+#endif

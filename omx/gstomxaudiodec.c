@@ -63,7 +63,6 @@ enum
   GST_DEBUG_CATEGORY_INIT (gst_omx_audio_dec_debug_category, "omxaudiodec", 0, \
       "debug category for gst-omx audio decoder base class");
 
-
 G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXAudioDec, gst_omx_audio_dec,
     GST_TYPE_AUDIO_DECODER, DEBUG_INIT);
 
@@ -206,7 +205,7 @@ gst_omx_audio_dec_close (GstAudioDecoder * decoder)
   self->dec_in_port = NULL;
   self->dec_out_port = NULL;
   if (self->dec)
-    gst_omx_component_unref (self->dec);
+    gst_omx_component_free (self->dec);
   self->dec = NULL;
 
   self->started = FALSE;
@@ -303,7 +302,7 @@ gst_omx_audio_dec_loop (GstOMXAudioDec * self)
   OMX_ERRORTYPE err;
   gint spf;
 
-  acq_return = gst_omx_port_acquire_buffer (port, &buf, GST_OMX_WAIT);
+  acq_return = gst_omx_port_acquire_buffer (port, &buf);
   if (acq_return == GST_OMX_ACQUIRE_BUFFER_ERROR) {
     goto component_error;
   } else if (acq_return == GST_OMX_ACQUIRE_BUFFER_FLUSHING) {
@@ -492,8 +491,7 @@ gst_omx_audio_dec_loop (GstOMXAudioDec * self)
   }
 
   GST_DEBUG_OBJECT (self, "Handling buffer: 0x%08x %" G_GUINT64_FORMAT,
-      (guint) buf->omx_buf->nFlags,
-      (guint64) GST_OMX_GET_TICKS (buf->omx_buf->nTimeStamp));
+      (guint) buf->omx_buf->nFlags, (guint64) buf->omx_buf->nTimeStamp);
 
   GST_AUDIO_DECODER_STREAM_LOCK (self);
 
@@ -843,33 +841,22 @@ gst_omx_audio_dec_set_format (GstAudioDecoder * decoder, GstCaps * caps)
         return FALSE;
       needs_disable = FALSE;
     } else {
-      /* Disabling at the same time input port and output port is only
-       * required when a buffer is shared between the ports. This cannot
-       * be the case for a decoder because its input and output buffers
-       * are of different nature. So let's disable ports sequencially.
-       * Starting from IL 1.2.0, this point has been clarified.
-       * OMX_SendCommand will return an error if the IL client attempts to
-       * call it when there is already an on-going command being processed.
-       * The exception is for buffer sharing above and the event
-       * OMX_EventPortNeedsDisable will be sent to request disabling the
-       * other port at the same time. */
       if (gst_omx_port_set_enabled (self->dec_in_port, FALSE) != OMX_ErrorNone)
+        return FALSE;
+      if (gst_omx_port_set_enabled (out_port, FALSE) != OMX_ErrorNone)
         return FALSE;
       if (gst_omx_port_wait_buffers_released (self->dec_in_port,
               5 * GST_SECOND) != OMX_ErrorNone)
         return FALSE;
-      if (gst_omx_port_deallocate_buffers (self->dec_in_port) != OMX_ErrorNone)
-        return FALSE;
-      if (gst_omx_port_wait_enabled (self->dec_in_port,
-              1 * GST_SECOND) != OMX_ErrorNone)
-        return FALSE;
-
-      if (gst_omx_port_set_enabled (out_port, FALSE) != OMX_ErrorNone)
-        return FALSE;
       if (gst_omx_port_wait_buffers_released (out_port,
               1 * GST_SECOND) != OMX_ErrorNone)
         return FALSE;
-      if (gst_omx_port_deallocate_buffers (out_port) != OMX_ErrorNone)
+      if (gst_omx_port_deallocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+        return FALSE;
+      if (gst_omx_port_deallocate_buffers (self->dec_out_port) != OMX_ErrorNone)
+        return FALSE;
+      if (gst_omx_port_wait_enabled (self->dec_in_port,
+              1 * GST_SECOND) != OMX_ErrorNone)
         return FALSE;
       if (gst_omx_port_wait_enabled (out_port, 1 * GST_SECOND) != OMX_ErrorNone)
         return FALSE;
@@ -1001,18 +988,18 @@ gst_omx_audio_dec_flush (GstAudioDecoder * decoder, gboolean hard)
     gst_omx_component_get_state (self->dec, GST_CLOCK_TIME_NONE);
   }
 
-  /* 1) Flush the ports */
-  GST_DEBUG_OBJECT (self, "flushing ports");
-  gst_omx_port_set_flushing (self->dec_in_port, 5 * GST_SECOND, TRUE);
-  gst_omx_port_set_flushing (self->dec_out_port, 5 * GST_SECOND, TRUE);
-
-  /* 2) Wait until the srcpad loop is stopped,
+  /* 1) Wait until the srcpad loop is stopped,
    * unlock GST_AUDIO_DECODER_STREAM_LOCK to prevent deadlocks
    * caused by using this lock from inside the loop function */
   GST_AUDIO_DECODER_STREAM_UNLOCK (self);
   gst_pad_stop_task (GST_AUDIO_DECODER_SRC_PAD (decoder));
   GST_DEBUG_OBJECT (self, "Flushing -- task stopped");
   GST_AUDIO_DECODER_STREAM_LOCK (self);
+
+  /* 2) Flush the ports */
+  GST_DEBUG_OBJECT (self, "flushing ports");
+  gst_omx_port_set_flushing (self->dec_in_port, 5 * GST_SECOND, TRUE);
+  gst_omx_port_set_flushing (self->dec_out_port, 5 * GST_SECOND, TRUE);
 
   /* 3) Resume components */
   gst_omx_component_set_state (self->dec, OMX_StateExecuting);
@@ -1085,7 +1072,7 @@ gst_omx_audio_dec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
      * _loop() can't call _finish_frame() and we might block forever
      * because no input buffers are released */
     GST_AUDIO_DECODER_STREAM_UNLOCK (self);
-    acq_ret = gst_omx_port_acquire_buffer (port, &buf, GST_OMX_WAIT);
+    acq_ret = gst_omx_port_acquire_buffer (port, &buf);
 
     if (acq_ret == GST_OMX_ACQUIRE_BUFFER_ERROR) {
       GST_AUDIO_DECODER_STREAM_LOCK (self);
@@ -1180,11 +1167,10 @@ gst_omx_audio_dec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
           buf->omx_buf->nFilledLen);
 
       if (GST_CLOCK_TIME_IS_VALID (timestamp))
-        GST_OMX_SET_TICKS (buf->omx_buf->nTimeStamp,
-            gst_util_uint64_scale (timestamp, OMX_TICKS_PER_SECOND,
-                GST_SECOND));
+        buf->omx_buf->nTimeStamp =
+            gst_util_uint64_scale (timestamp, OMX_TICKS_PER_SECOND, GST_SECOND);
       else
-        GST_OMX_SET_TICKS (buf->omx_buf->nTimeStamp, G_GUINT64_CONSTANT (0));
+        buf->omx_buf->nTimeStamp = 0;
       buf->omx_buf->nTickCount = 0;
 
       self->started = TRUE;
@@ -1209,11 +1195,11 @@ gst_omx_audio_dec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
         buf->omx_buf->nFilledLen);
 
     if (timestamp != GST_CLOCK_TIME_NONE) {
-      GST_OMX_SET_TICKS (buf->omx_buf->nTimeStamp,
-          gst_util_uint64_scale (timestamp, OMX_TICKS_PER_SECOND, GST_SECOND));
+      buf->omx_buf->nTimeStamp =
+          gst_util_uint64_scale (timestamp, OMX_TICKS_PER_SECOND, GST_SECOND);
       self->last_upstream_ts = timestamp;
     } else {
-      GST_OMX_SET_TICKS (buf->omx_buf->nTimeStamp, G_GUINT64_CONSTANT (0));
+      buf->omx_buf->nTimeStamp = 0;
     }
 
     if (duration != GST_CLOCK_TIME_NONE && offset == 0) {
@@ -1353,7 +1339,7 @@ gst_omx_audio_dec_drain (GstOMXAudioDec * self)
   /* Send an EOS buffer to the component and let the base
    * class drop the EOS event. We will send it later when
    * the EOS buffer arrives on the output port. */
-  acq_ret = gst_omx_port_acquire_buffer (self->dec_in_port, &buf, GST_OMX_WAIT);
+  acq_ret = gst_omx_port_acquire_buffer (self->dec_in_port, &buf);
   if (acq_ret != GST_OMX_ACQUIRE_BUFFER_OK) {
     GST_AUDIO_DECODER_STREAM_LOCK (self);
     GST_ERROR_OBJECT (self, "Failed to acquire buffer for draining: %d",
@@ -1364,9 +1350,9 @@ gst_omx_audio_dec_drain (GstOMXAudioDec * self)
   g_mutex_lock (&self->drain_lock);
   self->draining = TRUE;
   buf->omx_buf->nFilledLen = 0;
-  GST_OMX_SET_TICKS (buf->omx_buf->nTimeStamp,
+  buf->omx_buf->nTimeStamp =
       gst_util_uint64_scale (self->last_upstream_ts, OMX_TICKS_PER_SECOND,
-          GST_SECOND));
+      GST_SECOND);
   buf->omx_buf->nTickCount = 0;
   buf->omx_buf->nFlags |= OMX_BUFFERFLAG_EOS;
   err = gst_omx_port_release_buffer (self->dec_in_port, buf);

@@ -45,6 +45,13 @@ typedef struct _GstOMXH264DecClass GstOMXH264DecClass;
 struct _GstOMXH264Dec
 {
   GstOMXVideoDec parent;
+#ifdef __LINUX_MEDIA_NAS__
+    guint width;
+    guint height;
+    guint fps;
+    guint turboMode;
+    gchar autoResize[GST_OMX_OUTPUT_AUTORISIZE_LEN_MAX];
+#endif
 };
 
 struct _GstOMXH264DecClass
@@ -57,4 +64,3 @@ GType gst_omx_h264_dec_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_H264_DEC_H__ */
-

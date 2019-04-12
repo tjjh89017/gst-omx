@@ -25,7 +25,6 @@
 
 #include <gmodule.h>
 #include <gst/gst.h>
-#include <gst/video/video.h>
 #include <string.h>
 
 #ifdef HAVE_CONFIG_H
@@ -46,11 +45,6 @@
 # endif
 #endif
 
-/* If the component may signal EOS before it has finished pushing
- * out all of its buffers. Happens with egl_render on the rpi.
- */
-#define GST_OMX_HACK_SIGNALS_PREMATURE_EOS                            G_GUINT64_CONSTANT (0x0000000000000400)
-
 #include <OMX_Core.h>
 #include <OMX_Component.h>
 
@@ -60,34 +54,6 @@
 
 #ifdef HAVE_VIDEO_EXT
 #include <OMX_VideoExt.h>
-#endif
-
-#ifdef HAVE_INDEX_EXT
-#include <OMX_IndexExt.h>
-#endif
-
-#ifdef HAVE_COMPONENT_EXT
-#include <OMX_ComponentExt.h>
-#endif
-
-#ifdef HAVE_CORE_EXT
-#include <OMX_CoreExt.h>
-#endif
-
-#ifdef HAVE_AUDIO_EXT
-#include <OMX_AudioExt.h>
-#endif
-
-#ifdef HAVE_IV_COMMON_EXT
-#include <OMX_IVCommonExt.h>
-#endif
-
-#ifdef HAVE_IMAGE_EXT
-#include <OMX_ImageExt.h>
-#endif
-
-#ifdef HAVE_OTHER_EXT
-#include <OMX_OtherExt.h>
 #endif
 
 #ifdef GST_OMX_STRUCT_PACKING
@@ -104,35 +70,6 @@ G_BEGIN_DECLS
   (st)->nVersion.s.nRevision = OMX_VERSION_REVISION; \
   (st)->nVersion.s.nStep = OMX_VERSION_STEP; \
 } G_STMT_END
-
-#ifdef OMX_SKIP64BIT
-#define GST_OMX_GET_TICKS(ticks) ((((guint64) (ticks).nHighPart) << 32) | ((ticks).nLowPart))
-#define GST_OMX_SET_TICKS(ticks, i) G_STMT_START { \
-  ticks.nLowPart = ((guint64) (i)) & 0xffffffff; \
-  ticks.nHighPart = ((guint64) (i)) >> 32; \
-} G_STMT_END
-#else
-#define GST_OMX_GET_TICKS(ticks) (ticks)
-#define GST_OMX_SET_TICKS(ticks, i) G_STMT_START { \
-  ticks = i; \
-} G_STMT_END
-#endif
-
-/* If set on an element property means "use the OMX default value".
- * If set on a default_* variable means that the default values hasn't been
- * retrieved from OMX yet. */
-#define GST_OMX_PROP_OMX_DEFAULT G_MAXUINT32
-
-/* OMX_StateInvalid does not exist in 1.2.0 spec. The initial state is now
- * StateLoaded. Problem is that gst-omx still needs an initial state different
- * than StateLoaded. Otherwise gst_omx_component_set_state(StateLoaded) will
- * early return because it will think it is already in StateLoaded. Also note
- * that there is no call to gst_omx_component_set_state(StateInvalid) so this
- * also shows that StateInvalid is used as a helper in gst-omx.
- */
-#if OMX_VERSION_MINOR == 2
-#define OMX_StateInvalid OMX_StateReserved_0x00000000
-#endif
 
 /* Different hacks that are required to work around
  * bugs in different OpenMAX implementations
@@ -179,34 +116,6 @@ G_BEGIN_DECLS
  */
 #define GST_OMX_HACK_NO_DISABLE_OUTPORT                               G_GUINT64_CONSTANT (0x0000000000000100)
 
-/* If the encoder requires input buffers that have a height
- * which is a multiple of 16 pixels
- */
-#define GST_OMX_HACK_HEIGHT_MULTIPLE_16             G_GUINT64_CONSTANT (0x0000000000000200)
-
-/* If we should pass the profile/level information from upstream to the
- * OMX decoder. This is a violation of the OMX spec as
- * OMX_IndexParamVideoProfileLevelCurrent is supposed to be r-o so
- * do it as a platform specific hack.
- */
-#define GST_OMX_HACK_PASS_PROFILE_TO_DECODER        G_GUINT64_CONSTANT (0x0000000000000800)
-
-/* If we should pass the color format information from upstream to the
- * OMX decoder input. This is a violation of the OMX spec as
- * the eColorFormat field is supposed to only be used if eCompressionFormat is
- * set to OMX_IMAGE_CodingUnused.
- * Do this as a platform specific hack for OMX implementation which may use
- * this information to pre-allocate internal buffers for example.
- */
-#define GST_OMX_HACK_PASS_COLOR_FORMAT_TO_DECODER        G_GUINT64_CONSTANT (0x0000000000001000)
-
-/* If set, automatically update nBufferCountActual to nBufferCountMin before
- * allocating buffers. This can be used on OMX implementation decreasing
- * nBufferCountMin depending of the format and so can reduce the number
- * of allocated buffers.
- */
-#define GST_OMX_HACK_ENSURE_BUFFER_COUNT_ACTUAL          G_GUINT64_CONSTANT (0x0000000000002000)
-
 typedef struct _GstOMXCore GstOMXCore;
 typedef struct _GstOMXPort GstOMXPort;
 typedef enum _GstOMXPortDirection GstOMXPortDirection;
@@ -225,9 +134,7 @@ typedef enum {
   /* The port is EOS */
   GST_OMX_ACQUIRE_BUFFER_EOS,
   /* A fatal error happened */
-  GST_OMX_ACQUIRE_BUFFER_ERROR,
-  /* No buffer is currently available (used when calling gst_omx_port_acquire_buffer() in not waiting mode) */
-  GST_OMX_ACQUIRE_BUFFER_NO_AVAILABLE,
+  GST_OMX_ACQUIRE_BUFFER_ERROR
 } GstOMXAcquireBufferReturn;
 
 struct _GstOMXCore {
@@ -263,18 +170,6 @@ typedef enum {
   GST_OMX_COMPONENT_TYPE_SOURCE,
   GST_OMX_COMPONENT_TYPE_FILTER
 } GstOmxComponentType;
-
-/* How the port's buffers are allocated */
-typedef enum {
-  GST_OMX_BUFFER_ALLOCATION_ALLOCATE_BUFFER,
-  GST_OMX_BUFFER_ALLOCATION_USE_BUFFER,
-  GST_OMX_BUFFER_ALLOCATION_USE_BUFFER_DYNAMIC, /* Only supported by OMX 1.2.0 */
-} GstOMXBufferAllocation;
-
-typedef enum {
-  GST_OMX_WAIT,
-  GST_OMX_DONT_WAIT,
-} GstOMXWait;
 
 struct _GstOMXMessage {
   GstOMXMessageType type;
@@ -323,8 +218,6 @@ struct _GstOMXPort {
   gboolean enabled_pending;  /* TRUE after OMX_Command{En,Dis}able */
   gboolean disabled_pending; /* was done until it took effect */
   gboolean eos; /* TRUE after a buffer with EOS flag was received */
-  GstOMXBufferAllocation allocation;
-  gboolean using_pool; /* TRUE if the buffers of this port are managed by a pool */
 
   /* Increased whenever the settings of these port change.
    * If settings_cookie != configured_settings_cookie
@@ -335,8 +228,6 @@ struct _GstOMXPort {
 };
 
 struct _GstOMXComponent {
-  GstMiniObject mini_object;
-
   GstObject *parent;
 
   gchar *name; /* for debugging mostly */
@@ -383,15 +274,6 @@ struct _GstOMXBuffer {
 
   /* TRUE if this is an EGLImage */
   gboolean eglimage;
-
-  /* Used in dynamic buffer mode to keep track of the mapped content while it's
-   * being processed by the OMX component. */
-  GstVideoFrame input_frame;
-  gboolean input_frame_mapped; /* TRUE if input_frame is valid */
-  GstMemory *input_mem;
-  GstBuffer *input_buffer;
-  gboolean input_buffer_mapped;
-  GstMapInfo map;
 };
 
 struct _GstOMXClassData {
@@ -414,18 +296,14 @@ GKeyFile *        gst_omx_get_configuration (void);
 const gchar *     gst_omx_error_to_string (OMX_ERRORTYPE err);
 const gchar *     gst_omx_state_to_string (OMX_STATETYPE state);
 const gchar *     gst_omx_command_to_string (OMX_COMMANDTYPE cmd);
-const gchar *     gst_omx_buffer_flags_to_string (guint32 flags);
 
 guint64           gst_omx_parse_hacks (gchar ** hacks);
 
 GstOMXCore *      gst_omx_core_acquire (const gchar * filename);
 void              gst_omx_core_release (GstOMXCore * core);
 
-GType             gst_omx_component_get_type (void);
-
 GstOMXComponent * gst_omx_component_new (GstObject * parent, const gchar *core_name, const gchar *component_name, const gchar * component_role, guint64 hacks);
-GstOMXComponent * gst_omx_component_ref   (GstOMXComponent * comp);
-void              gst_omx_component_unref (GstOMXComponent * comp);
+void              gst_omx_component_free (GstOMXComponent * comp);
 
 OMX_ERRORTYPE     gst_omx_component_set_state (GstOMXComponent * comp, OMX_STATETYPE state);
 OMX_STATETYPE     gst_omx_component_get_state (GstOMXComponent * comp, GstClockTime timeout);
@@ -445,11 +323,10 @@ OMX_ERRORTYPE     gst_omx_component_set_config (GstOMXComponent * comp, OMX_INDE
 OMX_ERRORTYPE     gst_omx_setup_tunnel (GstOMXPort * port1, GstOMXPort * port2);
 OMX_ERRORTYPE     gst_omx_close_tunnel (GstOMXPort * port1, GstOMXPort * port2);
 
-
 OMX_ERRORTYPE     gst_omx_port_get_port_definition (GstOMXPort * port, OMX_PARAM_PORTDEFINITIONTYPE * port_def);
 OMX_ERRORTYPE     gst_omx_port_update_port_definition (GstOMXPort *port, OMX_PARAM_PORTDEFINITIONTYPE *port_definition);
 
-GstOMXAcquireBufferReturn gst_omx_port_acquire_buffer (GstOMXPort *port, GstOMXBuffer **buf, GstOMXWait wait);
+GstOMXAcquireBufferReturn gst_omx_port_acquire_buffer (GstOMXPort *port, GstOMXBuffer **buf);
 OMX_ERRORTYPE     gst_omx_port_release_buffer (GstOMXPort *port, GstOMXBuffer *buf);
 
 OMX_ERRORTYPE     gst_omx_port_set_flushing (GstOMXPort *port, GstClockTime timeout, gboolean flush);
@@ -461,31 +338,17 @@ OMX_ERRORTYPE     gst_omx_port_use_eglimages (GstOMXPort *port, const GList *ima
 OMX_ERRORTYPE     gst_omx_port_deallocate_buffers (GstOMXPort *port);
 OMX_ERRORTYPE     gst_omx_port_populate (GstOMXPort *port);
 OMX_ERRORTYPE     gst_omx_port_wait_buffers_released (GstOMXPort * port, GstClockTime timeout);
-void              gst_omx_port_requeue_buffer (GstOMXPort * port, GstOMXBuffer * buf);
 
 OMX_ERRORTYPE     gst_omx_port_mark_reconfigured (GstOMXPort * port);
 
 OMX_ERRORTYPE     gst_omx_port_set_enabled (GstOMXPort * port, gboolean enabled);
 OMX_ERRORTYPE     gst_omx_port_wait_enabled (GstOMXPort * port, GstClockTime timeout);
 gboolean          gst_omx_port_is_enabled (GstOMXPort * port);
-gboolean          gst_omx_port_ensure_buffer_count_actual (GstOMXPort * port, guint extra);
-gboolean          gst_omx_port_update_buffer_count_actual (GstOMXPort * port, guint nb);
-
-gboolean          gst_omx_port_set_dmabuf (GstOMXPort * port, gboolean dmabuf);
-
-/* OMX 1.2.0 dynamic allocation mode */
-gboolean          gst_omx_is_dynamic_allocation_supported (void);
-OMX_ERRORTYPE     gst_omx_port_use_dynamic_buffers (GstOMXPort * port);
-gboolean          gst_omx_buffer_map_frame (GstOMXBuffer * buffer, GstBuffer * input, GstVideoInfo * info);
-gboolean          gst_omx_buffer_map_memory (GstOMXBuffer * buffer, GstMemory * mem);
-gboolean          gst_omx_buffer_map_buffer (GstOMXBuffer * buffer, GstBuffer * input);
-gboolean          gst_omx_buffer_import_fd (GstOMXBuffer * buffer, GstBuffer * input);
 
 void              gst_omx_set_default_role (GstOMXClassData *class_data, const gchar *default_role);
-
-void              gst_omx_buffer_set_omx_buf (GstBuffer * buffer, GstOMXBuffer * omx_buf);
-GstOMXBuffer *    gst_omx_buffer_get_omx_buf (GstBuffer * buffer);
-
+#ifdef __LINUX_MEDIA_NAS__  
+OMX_ERRORTYPE     gst_omx_component_get_extension_index (GstOMXComponent * comp, OMX_STRING index, gpointer param);
+#endif
 /* refered by plugin_init */
 GST_DEBUG_CATEGORY_EXTERN (gst_omx_video_debug_category);
 

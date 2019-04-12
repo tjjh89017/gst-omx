@@ -28,12 +28,9 @@
 
 #include "gstomxvideo.h"
 
-#include <math.h>
-
 GST_DEBUG_CATEGORY (gst_omx_video_debug_category);
 #define GST_CAT_DEFAULT gst_omx_video_debug_category
 
-/* Keep synced with GST_OMX_VIDEO_SUPPORTED_FORMATS */
 GstVideoFormat
 gst_omx_video_get_format_from_omx (OMX_COLOR_FORMATTYPE omx_colorformat)
 {
@@ -48,7 +45,6 @@ gst_omx_video_get_format_from_omx (OMX_COLOR_FORMATTYPE omx_colorformat)
       format = GST_VIDEO_FORMAT_I420;
       break;
     case OMX_COLOR_FormatYUV420SemiPlanar:
-    case OMX_COLOR_FormatYUV420PackedSemiPlanar:
       format = GST_VIDEO_FORMAT_NV12;
       break;
     case OMX_COLOR_FormatYUV422SemiPlanar:
@@ -79,21 +75,6 @@ gst_omx_video_get_format_from_omx (OMX_COLOR_FORMATTYPE omx_colorformat)
     case OMX_COLOR_Format16bitBGR565:
       format = GST_VIDEO_FORMAT_BGR16;
       break;
-    case OMX_COLOR_Format24bitBGR888:
-      format = GST_VIDEO_FORMAT_BGR;
-      break;
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-      /* Formats defined in extensions have their own enum so disable to -Wswitch warning */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wswitch"
-    case OMX_ALG_COLOR_FormatYUV420SemiPlanar10bitPacked:
-      format = GST_VIDEO_FORMAT_NV12_10LE32;
-      break;
-    case OMX_ALG_COLOR_FormatYUV422SemiPlanar10bitPacked:
-      format = GST_VIDEO_FORMAT_NV16_10LE32;
-      break;
-#pragma GCC diagnostic pop
-#endif
     default:
       format = GST_VIDEO_FORMAT_UNKNOWN;
       break;
@@ -117,8 +98,10 @@ gst_omx_video_get_supported_colorformats (GstOMXPort * port,
   GST_OMX_INIT_STRUCT (&param);
   param.nPortIndex = port->index;
   param.nIndex = 0;
-  param.xFramerate =
-      state ? gst_omx_video_calculate_framerate_q16 (&state->info) : 0;
+  if (!state || state->info.fps_n == 0)
+    param.xFramerate = 0;
+  else
+    param.xFramerate = (state->info.fps_n << 16) / (state->info.fps_d);
 
   old_index = -1;
   do {
@@ -142,13 +125,13 @@ gst_omx_video_get_supported_colorformats (GstOMXPort * port,
         m->type = param.eColorFormat;
         negotiation_map = g_list_append (negotiation_map, m);
         GST_DEBUG_OBJECT (comp->parent,
-            "Component port %d supports %s (%d) at index %u", port->index,
+            "Component supports %s (%d) at index %u",
             gst_video_format_to_string (f), param.eColorFormat,
             (guint) param.nIndex);
       } else {
         GST_DEBUG_OBJECT (comp->parent,
-            "Component port %d supports unsupported color format %d at index %u",
-            port->index, param.eColorFormat, (guint) param.nIndex);
+            "Component supports unsupported color format %d at index %u",
+            param.eColorFormat, (guint) param.nIndex);
       }
     }
     old_index = param.nIndex++;
@@ -189,8 +172,8 @@ gst_omx_video_find_nearest_frame (GstOMXBuffer * buf, GList * frames)
   GList *l;
 
   timestamp =
-      gst_util_uint64_scale (GST_OMX_GET_TICKS (buf->omx_buf->nTimeStamp),
-      GST_SECOND, OMX_TICKS_PER_SECOND);
+      gst_util_uint64_scale (buf->omx_buf->nTimeStamp, GST_SECOND,
+      OMX_TICKS_PER_SECOND);
 
   for (l = frames; l; l = l->next) {
     GstVideoCodecFrame *tmp = l->data;
@@ -212,26 +195,4 @@ gst_omx_video_find_nearest_frame (GstOMXBuffer * buf, GList * frames)
   g_list_free (frames);
 
   return best;
-}
-
-OMX_U32
-gst_omx_video_calculate_framerate_q16 (GstVideoInfo * info)
-{
-  g_assert (info);
-
-  return gst_util_uint64_scale_int (1 << 16, info->fps_n, info->fps_d);
-}
-
-gboolean
-gst_omx_video_is_equal_framerate_q16 (OMX_U32 q16_a, OMX_U32 q16_b)
-{
-  /* If one of them is 0 use the classic comparison. The value 0 has a special
-     meaning and is used to indicate the frame rate is unknown, variable, or
-     is not needed. */
-  if (!q16_a || !q16_b)
-    return q16_a == q16_b;
-
-  /* If the 'percentage change' is less than 1% then consider it equal to avoid
-   * an unnecessary re-negotiation. */
-  return fabs (((gdouble) q16_a) - ((gdouble) q16_b)) / (gdouble) q16_b < 0.01;
 }

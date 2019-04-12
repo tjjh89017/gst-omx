@@ -58,4 +58,3 @@ GType gst_omx_theora_dec_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_THEORA_DEC_H__ */
-

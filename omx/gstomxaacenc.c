@@ -104,7 +104,6 @@ gst_omx_aac_er_tools_get_type (void)
 G_DEFINE_TYPE_WITH_CODE (GstOMXAACEnc, gst_omx_aac_enc,
     GST_TYPE_OMX_AUDIO_ENC, DEBUG_INIT);
 
-
 static void
 gst_omx_aac_enc_class_init (GstOMXAACEncClass * klass)
 {
@@ -147,10 +146,9 @@ gst_omx_aac_enc_class_init (GstOMXAACEncClass * klass)
       "mpegversion=(int){2, 4}, "
       "stream-format=(string){raw, adts, adif, loas, latm}";
 
-
   gst_element_class_set_static_metadata (element_class,
       "OpenMAX AAC Audio Encoder",
-      "Codec/Encoder/Audio/Hardware",
+      "Codec/Encoder/Audio",
       "Encode AAC audio streams",
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
 
@@ -293,9 +291,6 @@ gst_omx_aac_enc_set_format (GstOMXAudioEnc * enc, GstOMXPort * port,
     }
 
     gst_caps_unref (peercaps);
-
-    aac_profile.nSampleRate = info->rate;
-    aac_profile.nChannels = info->channels;
   }
 
   aac_profile.nAACtools = self->aac_tools;
@@ -469,7 +464,7 @@ gst_omx_aac_enc_get_caps (GstOMXAudioEnc * enc, GstOMXPort * port,
   if (mpegversion != 0)
     gst_caps_set_simple (caps, "mpegversion", G_TYPE_INT, mpegversion,
         "stream-format", G_TYPE_STRING, stream_format, NULL);
-  if (profile != NULL && (mpegversion == 2 || mpegversion == 4))
+  if (profile != NULL && mpegversion == 2)
     gst_caps_set_simple (caps, "profile", G_TYPE_STRING, profile, NULL);
   if (profile != NULL && mpegversion == 4)
     gst_caps_set_simple (caps, "base-profile", G_TYPE_STRING, profile, NULL);

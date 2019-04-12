@@ -45,6 +45,12 @@ typedef struct _GstOMXMPEG2VideoDecClass GstOMXMPEG2VideoDecClass;
 struct _GstOMXMPEG2VideoDec
 {
   GstOMXVideoDec parent;
+#ifdef __LINUX_MEDIA_NAS__
+    guint width;
+    guint height;
+    guint fps;
+    gchar autoResize[GST_OMX_OUTPUT_AUTORISIZE_LEN_MAX];
+#endif
 };
 
 struct _GstOMXMPEG2VideoDecClass

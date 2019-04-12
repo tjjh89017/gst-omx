@@ -55,15 +55,13 @@ enum
 };
 
 /* class initialization */
-#define do_init \
-{ \
+
+#define DEBUG_INIT \
   GST_DEBUG_CATEGORY_INIT (gst_omx_audio_enc_debug_category, "omxaudioenc", 0, \
-      "debug category for gst-omx audio encoder base class"); \
-  G_IMPLEMENT_INTERFACE (GST_TYPE_PRESET, NULL); \
-}
+      "debug category for gst-omx audio encoder base class");
 
 G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstOMXAudioEnc, gst_omx_audio_enc,
-    GST_TYPE_AUDIO_ENCODER, do_init);
+    GST_TYPE_AUDIO_ENCODER, DEBUG_INIT);
 
 static void
 gst_omx_audio_enc_class_init (GstOMXAudioEncClass * klass)
@@ -157,7 +155,6 @@ gst_omx_audio_enc_open (GstAudioEncoder * encoder)
   return TRUE;
 }
 
-
 static gboolean
 gst_omx_audio_enc_shutdown (GstOMXAudioEnc * self)
 {
@@ -194,7 +191,7 @@ gst_omx_audio_enc_close (GstAudioEncoder * encoder)
   self->enc_in_port = NULL;
   self->enc_out_port = NULL;
   if (self->enc)
-    gst_omx_component_unref (self->enc);
+    gst_omx_component_free (self->enc);
   self->enc = NULL;
 
   return TRUE;
@@ -285,7 +282,7 @@ gst_omx_audio_enc_loop (GstOMXAudioEnc * self)
 
   klass = GST_OMX_AUDIO_ENC_GET_CLASS (self);
 
-  acq_return = gst_omx_port_acquire_buffer (port, &buf, GST_OMX_WAIT);
+  acq_return = gst_omx_port_acquire_buffer (port, &buf);
   if (acq_return == GST_OMX_ACQUIRE_BUFFER_ERROR) {
     goto component_error;
   } else if (acq_return == GST_OMX_ACQUIRE_BUFFER_FLUSHING) {
@@ -334,7 +331,7 @@ gst_omx_audio_enc_loop (GstOMXAudioEnc * self)
 
     GST_DEBUG_OBJECT (self, "Setting output caps: %" GST_PTR_FORMAT, caps);
 
-    if (!gst_audio_encoder_set_output_format (GST_AUDIO_ENCODER (self), caps)) {
+    if (!gst_pad_set_caps (GST_AUDIO_ENCODER_SRC_PAD (self), caps)) {
       gst_caps_unref (caps);
       if (buf)
         gst_omx_port_release_buffer (self->enc_out_port, buf);
@@ -381,8 +378,7 @@ gst_omx_audio_enc_loop (GstOMXAudioEnc * self)
   }
 
   GST_DEBUG_OBJECT (self, "Handling buffer: 0x%08x %" G_GUINT64_FORMAT,
-      (guint) buf->omx_buf->nFlags,
-      (guint64) GST_OMX_GET_TICKS (buf->omx_buf->nTimeStamp));
+      (guint) buf->omx_buf->nFlags, (guint64) buf->omx_buf->nTimeStamp);
 
   /* This prevents a deadlock between the srcpad stream
    * lock and the videocodec stream lock, if ::reset()
@@ -450,8 +446,8 @@ gst_omx_audio_enc_loop (GstOMXAudioEnc * self)
     }
 
     GST_BUFFER_TIMESTAMP (outbuf) =
-        gst_util_uint64_scale (GST_OMX_GET_TICKS (buf->omx_buf->nTimeStamp),
-        GST_SECOND, OMX_TICKS_PER_SECOND);
+        gst_util_uint64_scale (buf->omx_buf->nTimeStamp, GST_SECOND,
+        OMX_TICKS_PER_SECOND);
     if (buf->omx_buf->nTickCount != 0)
       GST_BUFFER_DURATION (outbuf) =
           gst_util_uint64_scale (buf->omx_buf->nTickCount, GST_SECOND,
@@ -690,37 +686,23 @@ gst_omx_audio_enc_set_format (GstAudioEncoder * encoder, GstAudioInfo * info)
       if (!gst_omx_audio_enc_open (GST_AUDIO_ENCODER (self)))
         return FALSE;
       needs_disable = FALSE;
-
-      /* The local port_def is now obsolete so get it again. */
-      gst_omx_port_get_port_definition (self->enc_in_port, &port_def);
     } else {
-      /* Disabling at the same time input port and output port is only
-       * required when a buffer is shared between the ports. This cannot
-       * be the case for a encoder because its input and output buffers
-       * are of different nature. So let's disable ports sequencially.
-       * Starting from IL 1.2.0, this point has been clarified.
-       * OMX_SendCommand will return an error if the IL client attempts to
-       * call it when there is already an on-going command being processed.
-       * The exception is for buffer sharing above and the event
-       * OMX_EventPortNeedsDisable will be sent to request disabling the
-       * other port at the same time. */
       if (gst_omx_port_set_enabled (self->enc_in_port, FALSE) != OMX_ErrorNone)
+        return FALSE;
+      if (gst_omx_port_set_enabled (self->enc_out_port, FALSE) != OMX_ErrorNone)
         return FALSE;
       if (gst_omx_port_wait_buffers_released (self->enc_in_port,
               5 * GST_SECOND) != OMX_ErrorNone)
         return FALSE;
-      if (gst_omx_port_deallocate_buffers (self->enc_in_port) != OMX_ErrorNone)
-        return FALSE;
-      if (gst_omx_port_wait_enabled (self->enc_in_port,
-              1 * GST_SECOND) != OMX_ErrorNone)
-        return FALSE;
-
-      if (gst_omx_port_set_enabled (self->enc_out_port, FALSE) != OMX_ErrorNone)
-        return FALSE;
       if (gst_omx_port_wait_buffers_released (self->enc_out_port,
               1 * GST_SECOND) != OMX_ErrorNone)
         return FALSE;
+      if (gst_omx_port_deallocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+        return FALSE;
       if (gst_omx_port_deallocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+        return FALSE;
+      if (gst_omx_port_wait_enabled (self->enc_in_port,
+              1 * GST_SECOND) != OMX_ErrorNone)
         return FALSE;
       if (gst_omx_port_wait_enabled (self->enc_out_port,
               1 * GST_SECOND) != OMX_ErrorNone)
@@ -960,7 +942,7 @@ gst_omx_audio_enc_handle_frame (GstAudioEncoder * encoder, GstBuffer * inbuf)
      * _loop() can't call _finish_frame() and we might block forever
      * because no input buffers are released */
     GST_AUDIO_ENCODER_STREAM_UNLOCK (self);
-    acq_ret = gst_omx_port_acquire_buffer (port, &buf, GST_OMX_WAIT);
+    acq_ret = gst_omx_port_acquire_buffer (port, &buf);
 
     if (acq_ret == GST_OMX_ACQUIRE_BUFFER_ERROR) {
       GST_AUDIO_ENCODER_STREAM_LOCK (self);
@@ -1053,9 +1035,9 @@ gst_omx_audio_enc_handle_frame (GstAudioEncoder * encoder, GstBuffer * inbuf)
     }
 
     if (timestamp != GST_CLOCK_TIME_NONE) {
-      GST_OMX_SET_TICKS (buf->omx_buf->nTimeStamp,
+      buf->omx_buf->nTimeStamp =
           gst_util_uint64_scale (timestamp + timestamp_offset,
-              OMX_TICKS_PER_SECOND, GST_SECOND));
+          OMX_TICKS_PER_SECOND, GST_SECOND);
       self->last_upstream_ts = timestamp + timestamp_offset;
     }
     if (duration != GST_CLOCK_TIME_NONE) {
@@ -1145,7 +1127,7 @@ gst_omx_audio_enc_drain (GstOMXAudioEnc * self)
   /* Send an EOS buffer to the component and let the base
    * class drop the EOS event. We will send it later when
    * the EOS buffer arrives on the output port. */
-  acq_ret = gst_omx_port_acquire_buffer (self->enc_in_port, &buf, GST_OMX_WAIT);
+  acq_ret = gst_omx_port_acquire_buffer (self->enc_in_port, &buf);
   if (acq_ret != GST_OMX_ACQUIRE_BUFFER_OK) {
     GST_AUDIO_ENCODER_STREAM_LOCK (self);
     GST_ERROR_OBJECT (self, "Failed to acquire buffer for draining: %d",
@@ -1156,16 +1138,15 @@ gst_omx_audio_enc_drain (GstOMXAudioEnc * self)
   g_mutex_lock (&self->drain_lock);
   self->draining = TRUE;
   buf->omx_buf->nFilledLen = 0;
-  GST_OMX_SET_TICKS (buf->omx_buf->nTimeStamp,
+  buf->omx_buf->nTimeStamp =
       gst_util_uint64_scale (self->last_upstream_ts, OMX_TICKS_PER_SECOND,
-          GST_SECOND));
+      GST_SECOND);
   buf->omx_buf->nTickCount = 0;
   buf->omx_buf->nFlags |= OMX_BUFFERFLAG_EOS;
   err = gst_omx_port_release_buffer (self->enc_in_port, buf);
   if (err != OMX_ErrorNone) {
     GST_ERROR_OBJECT (self, "Failed to drain component: %s (0x%08x)",
         gst_omx_error_to_string (err), err);
-    g_mutex_unlock (&self->drain_lock);
     GST_AUDIO_ENCODER_STREAM_LOCK (self);
     return GST_FLOW_ERROR;
   }

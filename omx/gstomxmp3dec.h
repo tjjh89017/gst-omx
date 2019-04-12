@@ -57,4 +57,3 @@ GType gst_omx_mp3_dec_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_MP3_DEC_H__ */
-

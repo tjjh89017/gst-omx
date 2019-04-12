@@ -1,0 +1,7 @@
+[BuildDependent]
+gstreamer-1.6.x-virtual-video-station
+gst-plugins-base-1.6.x-virtual-video-station
+Rtd-SDK-virtual-video-station
+
+[default]
+all="6.0"

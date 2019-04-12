@@ -47,7 +47,6 @@ static gboolean gst_omx_mp3_dec_get_channel_positions (GstOMXAudioDec * dec,
 G_DEFINE_TYPE_WITH_CODE (GstOMXMP3Dec, gst_omx_mp3_dec,
     GST_TYPE_OMX_AUDIO_DEC, DEBUG_INIT);
 
-
 static void
 gst_omx_mp3_dec_class_init (GstOMXMP3DecClass * klass)
 {
@@ -71,7 +70,7 @@ gst_omx_mp3_dec_class_init (GstOMXMP3DecClass * klass)
 
   gst_element_class_set_static_metadata (element_class,
       "OpenMAX MP3 Audio Decoder",
-      "Codec/Decoder/Audio/Hardware",
+      "Codec/Decoder/Audio",
       "Decode MP3 audio streams",
       "Sebastian Dröge <sebastian@centricular.com>");
 

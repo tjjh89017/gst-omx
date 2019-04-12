@@ -57,4 +57,3 @@ GType gst_omx_h263_enc_get_type (void);
 G_END_DECLS
 
 #endif /* __GST_OMX_H263_ENC_H__ */
-

@@ -39,9 +39,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "config.h"
 #endif
 
-#include <EGL/egl.h>
-#include <GLES2/gl2.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,9 +63,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if defined (USE_OMX_TARGET_RPI)
 #include <bcm_host.h>
-#elif defined(HAVE_X11)
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
 #endif
 
 #if defined (USE_OMX_TARGET_RPI) && defined (__GNUC__)
@@ -350,11 +344,6 @@ typedef struct
   /* number of rendered and dropped frames */
   guint64 rendered;
   guint64 dropped;
-
-#if !defined (USE_OMX_TARGET_RPI) && defined(HAVE_X11)
-  Display *xdisplay;
-  Window xwindow;
-#endif
 } APP_STATE_T;
 
 static void init_ogl (APP_STATE_T * state);
@@ -401,12 +390,7 @@ typedef enum
 static void
 init_ogl (APP_STATE_T * state)
 {
-#if defined (USE_OMX_TARGET_RPI)
   int32_t success = 0;
-#else
-  gint screen_num = 0;
-  gulong black_pixel = 0;
-#endif
   EGLBoolean result;
   EGLint num_config;
   EGLNativeWindowType window_handle = (EGLNativeWindowType) 0;
@@ -493,19 +477,6 @@ init_ogl (APP_STATE_T * state)
   vc_dispmanx_update_submit_sync (dispman_update);
 
   window_handle = &nativewindow;
-#elif defined(HAVE_X11)
-  state->screen_width = 1280;
-  state->screen_height = 720;
-  state->xdisplay = XOpenDisplay (NULL);
-  screen_num = DefaultScreen (state->xdisplay);
-  black_pixel = XBlackPixel (state->xdisplay, screen_num);
-  state->xwindow = XCreateSimpleWindow (state->xdisplay,
-      DefaultRootWindow (state->xdisplay), 0, 0, state->screen_width,
-      state->screen_height, 0, 0, black_pixel);
-  XSetWindowBackgroundPixmap (state->xdisplay, state->xwindow, None);
-  XMapRaised (state->xdisplay, state->xwindow);
-  XSync (state->xdisplay, FALSE);
-  window_handle = state->xwindow;
 #endif
 
   state->surface =
@@ -725,10 +696,7 @@ redraw_scene (APP_STATE_T * state)
   glDrawArrays (GL_TRIANGLE_STRIP, 16, 4);
   glDrawArrays (GL_TRIANGLE_STRIP, 20, 4);
 
-  if (!eglSwapBuffers (state->display, state->surface)) {
-    g_main_loop_quit (state->main_loop);
-    return;
-  }
+  eglSwapBuffers (state->display, state->surface);
 
   glDisable (GL_DEPTH_TEST);
   glDisable (GL_CULL_FACE);
@@ -967,6 +935,15 @@ handle_queued_objects (APP_STATE_T * state)
       if (!SYNC_BUFFERS) {
         object = NULL;
       }
+    } else if (GST_IS_QUERY (object)) {
+      GstQuery *query = GST_QUERY_CAST (object);
+      GstStructure *s = (GstStructure *) gst_query_get_structure (query);
+
+      if (gst_structure_has_name (s, "not-used")) {
+        g_assert_not_reached ();
+      } else {
+        g_assert_not_reached ();
+      }
     } else if (GST_IS_EVENT (object)) {
       GstEvent *event = GST_EVENT_CAST (object);
       g_print ("\nevent %p %s\n", event,
@@ -1082,8 +1059,8 @@ query_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
     case GST_QUERY_CONTEXT:
     {
       if (gst_gl_handle_context_query (state->pipeline, query,
-              (GstGLDisplay *) state->gst_display, NULL,
-              (GstGLContext *) state->gl_context))
+              (GstGLDisplay **) & state->gst_display,
+              (GstGLContext **) & state->gl_context))
         return GST_PAD_PROBE_HANDLED;
       break;
     }
@@ -1113,7 +1090,7 @@ init_playbin_player (APP_STATE_T * state, const gchar * uri)
   GstElement *vsink = gst_element_factory_make ("fakesink", "vsink");
 
   g_object_set (capsfilter, "caps",
-      gst_caps_from_string ("video/x-raw(memory:GLMemory), format=RGBA"), NULL);
+      gst_caps_from_string ("video/x-raw(memory:GLMemory)"), NULL);
   g_object_set (vsink, "sync", TRUE, "silent", TRUE, "qos", TRUE,
       "enable-last-sample", FALSE, "max-lateness", 20 * GST_MSECOND,
       "signal-handoffs", TRUE, NULL);
@@ -1434,12 +1411,6 @@ close_ogl (void)
   vc_dispmanx_element_remove (dispman_update, state->dispman_element);
   vc_dispmanx_update_submit_sync (dispman_update);
   vc_dispmanx_display_close (state->dispman_display);
-#elif defined(HAVE_X11)
-  XSync (state->xdisplay, FALSE);
-  XUnmapWindow (state->xdisplay, state->xwindow);
-  XDestroyWindow (state->xdisplay, state->xwindow);
-  XSync (state->xdisplay, FALSE);
-  XCloseDisplay (state->xdisplay);
 #endif
 }
 
@@ -1539,7 +1510,7 @@ main (int argc, char **argv)
   if (!res)
     goto done;
 
-  /* Create a GLib Main Loop */
+  /* Create a GLib Main Loop and set it to run */
   state->main_loop = g_main_loop_new (NULL, FALSE);
 
   /* Add a keyboard watch so we get notified of keystrokes */
@@ -1581,6 +1552,7 @@ main (int argc, char **argv)
   gst_element_set_state (state->pipeline, GST_STATE_PLAYING);
 
   /* Start the mainloop */
+  state->main_loop = g_main_loop_new (NULL, FALSE);
   g_main_loop_run (state->main_loop);
 
 done:

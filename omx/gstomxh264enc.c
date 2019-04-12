@@ -25,7 +25,6 @@
 #include <gst/gst.h>
 
 #include "gstomxh264enc.h"
-#include "gstomxh264utils.h"
 
 #ifdef USE_OMX_TARGET_RPI
 #include <OMX_Broadcom.h>
@@ -56,24 +55,28 @@ enum
   PROP_INLINESPSPPSHEADERS,
 #endif
   PROP_PERIODICITYOFIDRFRAMES,
-  PROP_PERIODICITYOFIDRFRAMES_COMPAT,
   PROP_INTERVALOFCODINGINTRAFRAMES,
-  PROP_B_FRAMES,
-  PROP_ENTROPY_MODE,
-  PROP_CONSTRAINED_INTRA_PREDICTION,
-  PROP_LOOP_FILTER_MODE,
+#ifdef __LINUX_MEDIA_NAS__
+  PROP_BITARTE,
+  PROP_INTERLACE,
+  PROP_ROTATION
+#endif
 };
 
 #ifdef USE_OMX_TARGET_RPI
 #define GST_OMX_H264_VIDEO_ENC_INLINE_SPS_PPS_HEADERS_DEFAULT      TRUE
 #endif
 #define GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT    (0xffffffff)
-#define GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT (0xffffffff)
-#define GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT (0xffffffff)
-#define GST_OMX_H264_VIDEO_ENC_ENTROPY_MODE_DEFAULT (0xffffffff)
-#define GST_OMX_H264_VIDEO_ENC_CONSTRAINED_INTRA_PREDICTION_DEFAULT (FALSE)
-#define GST_OMX_H264_VIDEO_ENC_LOOP_FILTER_MODE_DEFAULT (0xffffffff)
-
+#define GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT (10)
+#ifdef __LINUX_MEDIA_NAS__
+#define GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_MAX (60)
+#define GST_OMX_H264_VIDEO_ENC_BITRATE_DEFAULT (640000)
+#define GST_OMX_H264_VIDEO_ENC_BITRATE_MIN (128000)
+#define GST_OMX_H264_VIDEO_ENC_BITRATE_MAX (524288*1024)
+#define GST_OMX_H264_VIDEO_ENC_INTERLACE_DEFAULT FALSE
+#define GST_OMX_H264_VIDEO_ENC_ROTATION_DEFAULT (0)
+#define GST_OMX_H264_VIDEO_ENC_ROTATION_MAX (270)
+#endif
 
 /* class initialization */
 
@@ -84,47 +87,6 @@ enum
 #define parent_class gst_omx_h264_enc_parent_class
 G_DEFINE_TYPE_WITH_CODE (GstOMXH264Enc, gst_omx_h264_enc,
     GST_TYPE_OMX_VIDEO_ENC, DEBUG_INIT);
-
-#define GST_TYPE_OMX_H264_ENC_ENTROPY_MODE (gst_omx_h264_enc_entropy_mode_get_type ())
-static GType
-gst_omx_h264_enc_entropy_mode_get_type (void)
-{
-  static GType qtype = 0;
-
-  if (qtype == 0) {
-    static const GEnumValue values[] = {
-      {FALSE, "CAVLC entropy mode", "CAVLC"},
-      {TRUE, "CABAC entropy mode", "CABAC"},
-      {0xffffffff, "Component Default", "default"},
-      {0, NULL, NULL}
-    };
-
-    qtype = g_enum_register_static ("GstOMXH264EncEntropyMode", values);
-  }
-  return qtype;
-}
-
-#define GST_TYPE_OMX_H264_ENC_LOOP_FILTER_MODE (gst_omx_h264_enc_loop_filter_mode_get_type ())
-static GType
-gst_omx_h264_enc_loop_filter_mode_get_type (void)
-{
-  static GType qtype = 0;
-
-  if (qtype == 0) {
-    static const GEnumValue values[] = {
-      {OMX_VIDEO_AVCLoopFilterEnable, "Enable deblocking filter", "enable"},
-      {OMX_VIDEO_AVCLoopFilterDisable, "Disable deblocking filter", "disable"},
-      {OMX_VIDEO_AVCLoopFilterDisableSliceBoundary,
-            "Disables deblocking filter on slice boundary",
-          "disable-slice-boundary"},
-      {0xffffffff, "Component Default", "default"},
-      {0, NULL, NULL}
-    };
-
-    qtype = g_enum_register_static ("GstOMXH264EncLoopFilter", values);
-  }
-  return qtype;
-}
 
 static void
 gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
@@ -149,19 +111,52 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 #endif
-
-  g_object_class_install_property (gobject_class, PROP_PERIODICITYOFIDRFRAMES,
-      g_param_spec_uint ("periodicity-idr", "IDR periodicity",
+#ifdef __LINUX_MEDIA_NAS__
+/*  g_object_class_install_property (gobject_class, PROP_PERIODICITYOFIDRFRAMES,
+      g_param_spec_uint ("periodicty-idr", "Target Bitrate",
           "Periodicity of IDR frames (0xffffffff=component default)",
           0, G_MAXUINT,
           GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_MUTABLE_READY));
+          GST_PARAM_MUTABLE_READY));*/
 
   g_object_class_install_property (gobject_class,
-      PROP_PERIODICITYOFIDRFRAMES_COMPAT, g_param_spec_uint ("periodicty-idr",
-          "IDR periodicity",
-          "Periodicity of IDR frames (0xffffffff=component default) DEPRECATED - only for backwards compat",
+      PROP_INTERVALOFCODINGINTRAFRAMES,
+      g_param_spec_uint ("i-frame-interval",
+          "I-Frame Interval",
+          "I-Frame Interval, specified in seconds,you can choose 10, 24, 30 or 60",
+          1, GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_MAX,
+          GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_BITARTE,
+      g_param_spec_uint ("bitrate", "Bitrate",
+          "Bitrate in bit/sec",
+          GST_OMX_H264_VIDEO_ENC_BITRATE_MIN,
+          GST_OMX_H264_VIDEO_ENC_BITRATE_MAX,
+          GST_OMX_H264_VIDEO_ENC_BITRATE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_PLAYING));
+
+/*  g_object_class_install_property (gobject_class, PROP_INTERLACE,
+      g_param_spec_boolean ("interlaced", "Interlaced",
+          "Interlaced material", GST_OMX_H264_VIDEO_ENC_INTERLACE_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));*/
+
+  g_object_class_install_property (gobject_class,
+      PROP_ROTATION,
+      g_param_spec_uint ("rotation", "ROTATION",
+          "rotation, you can choose 0, 90, 180 or 270",
+          0, GST_OMX_H264_VIDEO_ENC_ROTATION_MAX,
+          GST_OMX_H264_VIDEO_ENC_ROTATION_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+#else
+
+  g_object_class_install_property (gobject_class, PROP_PERIODICITYOFIDRFRAMES,
+      g_param_spec_uint ("periodicty-idr", "Target Bitrate",
+          "Periodicity of IDR frames (0xffffffff=component default)",
           0, G_MAXUINT,
           GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -176,40 +171,7 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
           GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
-
-  g_object_class_install_property (gobject_class, PROP_B_FRAMES,
-      g_param_spec_uint ("b-frames", "Number of B-frames",
-          "Number of B-frames between two consecutive I-frames (0xffffffff=component default)",
-          0, G_MAXUINT, GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_MUTABLE_READY));
-
-  g_object_class_install_property (gobject_class, PROP_ENTROPY_MODE,
-      g_param_spec_enum ("entropy-mode", "Entropy Mode",
-          "Entropy mode for encoding process",
-          GST_TYPE_OMX_H264_ENC_ENTROPY_MODE,
-          GST_OMX_H264_VIDEO_ENC_ENTROPY_MODE_DEFAULT,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_MUTABLE_READY));
-
-  g_object_class_install_property (gobject_class,
-      PROP_CONSTRAINED_INTRA_PREDICTION,
-      g_param_spec_boolean ("constrained-intra-prediction",
-          "Constrained Intra Prediction",
-          "If enabled, prediction only uses residual data and decoded samples "
-          "from neighbouring coding blocks coded using intra prediction modes",
-          GST_OMX_H264_VIDEO_ENC_CONSTRAINED_INTRA_PREDICTION_DEFAULT,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_MUTABLE_READY));
-
-  g_object_class_install_property (gobject_class, PROP_LOOP_FILTER_MODE,
-      g_param_spec_enum ("loop-filter-mode", "Loop Filter mode",
-          "Enable or disable the deblocking filter (0xffffffff=component default)",
-          GST_TYPE_OMX_H264_ENC_LOOP_FILTER_MODE,
-          GST_OMX_H264_VIDEO_ENC_LOOP_FILTER_MODE_DEFAULT,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_MUTABLE_READY));
-
+#endif
   basevideoenc_class->flush = gst_omx_h264_enc_flush;
   basevideoenc_class->stop = gst_omx_h264_enc_stop;
 
@@ -220,7 +182,7 @@ gst_omx_h264_enc_class_init (GstOMXH264EncClass * klass)
 
   gst_element_class_set_static_metadata (element_class,
       "OpenMAX H.264 Video Encoder",
-      "Codec/Encoder/Video/Hardware",
+      "Codec/Encoder/Video",
       "Encode H.264 video streams",
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
 
@@ -240,24 +202,23 @@ gst_omx_h264_enc_set_property (GObject * object, guint prop_id,
       break;
 #endif
     case PROP_PERIODICITYOFIDRFRAMES:
-    case PROP_PERIODICITYOFIDRFRAMES_COMPAT:
       self->periodicty_idr = g_value_get_uint (value);
       break;
     case PROP_INTERVALOFCODINGINTRAFRAMES:
       self->interval_intraframes = g_value_get_uint (value);
       break;
-    case PROP_B_FRAMES:
-      self->b_frames = g_value_get_uint (value);
+#ifdef __LINUX_MEDIA_NAS__
+    case PROP_BITARTE:
+      self->bitrate = g_value_get_uint (value);
+      self->parent.target_bitrate = g_value_get_uint (value);
       break;
-    case PROP_ENTROPY_MODE:
-      self->entropy_mode = g_value_get_enum (value);
+    case PROP_INTERLACE:
+      self->interlace = g_value_get_boolean (value);
       break;
-    case PROP_CONSTRAINED_INTRA_PREDICTION:
-      self->constrained_intra_prediction = g_value_get_boolean (value);
+    case PROP_ROTATION:
+      self->rotation = g_value_get_uint (value);
       break;
-    case PROP_LOOP_FILTER_MODE:
-      self->loop_filter_mode = g_value_get_enum (value);
-      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -277,24 +238,22 @@ gst_omx_h264_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
 #endif
     case PROP_PERIODICITYOFIDRFRAMES:
-    case PROP_PERIODICITYOFIDRFRAMES_COMPAT:
       g_value_set_uint (value, self->periodicty_idr);
       break;
     case PROP_INTERVALOFCODINGINTRAFRAMES:
       g_value_set_uint (value, self->interval_intraframes);
       break;
-    case PROP_B_FRAMES:
-      g_value_set_uint (value, self->b_frames);
+#ifdef __LINUX_MEDIA_NAS__
+    case PROP_BITARTE:
+      g_value_set_uint (value, self->bitrate);
       break;
-    case PROP_ENTROPY_MODE:
-      g_value_set_enum (value, self->entropy_mode);
+    case PROP_INTERLACE:
+      g_value_set_boolean (value, self->interlace);
       break;
-    case PROP_CONSTRAINED_INTRA_PREDICTION:
-      g_value_set_boolean (value, self->constrained_intra_prediction);
+    case PROP_ROTATION:
+      g_value_set_uint (value, self->rotation);
       break;
-    case PROP_LOOP_FILTER_MODE:
-      g_value_set_enum (value, self->loop_filter_mode);
-      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -312,11 +271,11 @@ gst_omx_h264_enc_init (GstOMXH264Enc * self)
       GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT;
   self->interval_intraframes =
       GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT;
-  self->b_frames = GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT;
-  self->entropy_mode = GST_OMX_H264_VIDEO_ENC_ENTROPY_MODE_DEFAULT;
-  self->constrained_intra_prediction =
-      GST_OMX_H264_VIDEO_ENC_CONSTRAINED_INTRA_PREDICTION_DEFAULT;
-  self->loop_filter_mode = GST_OMX_H264_VIDEO_ENC_LOOP_FILTER_MODE_DEFAULT;
+#ifdef __LINUX_MEDIA_NAS__
+  self->bitrate = GST_OMX_H264_VIDEO_ENC_BITRATE_DEFAULT;
+  self->interlace = GST_OMX_H264_VIDEO_ENC_INTERLACE_DEFAULT;
+  self->rotation = GST_OMX_H264_VIDEO_ENC_ROTATION_DEFAULT;
+#endif
 }
 
 static gboolean
@@ -341,243 +300,6 @@ gst_omx_h264_enc_stop (GstVideoEncoder * enc)
   return GST_VIDEO_ENCODER_CLASS (parent_class)->stop (enc);
 }
 
-/* Update OMX_VIDEO_PARAM_PROFILELEVELTYPE.{eProfile,eLevel}
- *
- * Returns TRUE if succeeded or if not supported, FALSE if failed */
-static gboolean
-update_param_profile_level (GstOMXH264Enc * self,
-    OMX_VIDEO_AVCPROFILETYPE profile, OMX_VIDEO_AVCLEVELTYPE level)
-{
-  OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
-  OMX_ERRORTYPE err;
-
-  GST_OMX_INIT_STRUCT (&param);
-  param.nPortIndex = GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
-
-  err =
-      gst_omx_component_get_parameter (GST_OMX_VIDEO_ENC (self)->enc,
-      OMX_IndexParamVideoProfileLevelCurrent, &param);
-  if (err != OMX_ErrorNone) {
-    GST_WARNING_OBJECT (self,
-        "Getting OMX_IndexParamVideoProfileLevelCurrent not supported by component");
-    return TRUE;
-  }
-
-  if (profile != OMX_VIDEO_AVCProfileMax)
-    param.eProfile = profile;
-  if (level != OMX_VIDEO_AVCLevelMax)
-    param.eLevel = level;
-
-  err =
-      gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
-      OMX_IndexParamVideoProfileLevelCurrent, &param);
-  if (err == OMX_ErrorUnsupportedIndex) {
-    GST_WARNING_OBJECT (self,
-        "Setting OMX_IndexParamVideoProfileLevelCurrent not supported by component");
-    return TRUE;
-  } else if (err != OMX_ErrorNone) {
-    GST_ERROR_OBJECT (self,
-        "Error setting profile %u and level %u: %s (0x%08x)",
-        (guint) param.eProfile, (guint) param.eLevel,
-        gst_omx_error_to_string (err), err);
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-/* Update OMX_VIDEO_PARAM_AVCTYPE
- *
- * Returns TRUE if succeeded or if not supported, FALSE if failed */
-static gboolean
-update_param_avc (GstOMXH264Enc * self,
-    OMX_VIDEO_AVCPROFILETYPE profile, OMX_VIDEO_AVCLEVELTYPE level)
-{
-  OMX_VIDEO_PARAM_AVCTYPE param;
-  OMX_ERRORTYPE err;
-
-  GST_OMX_INIT_STRUCT (&param);
-  param.nPortIndex = GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
-
-  /* On Android the param struct is initialized manually with default
-   * settings rather than using GetParameter() to retrieve them.
-   * We should probably do the same when we'll add Android as target.
-   * See bgo#783862 for details. */
-
-  err =
-      gst_omx_component_get_parameter (GST_OMX_VIDEO_ENC (self)->enc,
-      OMX_IndexParamVideoAvc, &param);
-  if (err != OMX_ErrorNone) {
-    GST_WARNING_OBJECT (self,
-        "Getting OMX_IndexParamVideoAvc not supported by component");
-    return TRUE;
-  }
-
-  if (profile != OMX_VIDEO_AVCProfileMax)
-    param.eProfile = profile;
-  if (level != OMX_VIDEO_AVCLevelMax)
-    param.eLevel = level;
-
-  /* GOP pattern */
-  if (self->interval_intraframes !=
-      GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT) {
-    param.nPFrames = self->interval_intraframes;
-
-    /* If user specified a specific number of B-frames, reduce the number of
-     * P-frames by this amount. If not ensure there is no B-frame to have the
-     * requested GOP length. */
-    if (self->b_frames != GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT) {
-      if (self->b_frames > self->interval_intraframes) {
-        GST_ERROR_OBJECT (self,
-            "The interval_intraframes perdiod (%u) needs to be higher than the number of B-frames (%u)",
-            self->interval_intraframes, self->b_frames);
-        return FALSE;
-      }
-      param.nPFrames -= self->b_frames;
-    } else {
-      param.nBFrames = 0;
-    }
-  }
-
-  if (self->b_frames != GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT) {
-    if (profile == OMX_VIDEO_AVCProfileBaseline && self->b_frames > 0) {
-      GST_ERROR_OBJECT (self,
-          "Baseline profile doesn't support B-frames (%u requested)",
-          self->b_frames);
-      return FALSE;
-    }
-    param.nBFrames = self->b_frames;
-  }
-
-  if (self->entropy_mode != GST_OMX_H264_VIDEO_ENC_ENTROPY_MODE_DEFAULT) {
-    param.bEntropyCodingCABAC = self->entropy_mode;
-  }
-
-  param.bconstIpred = self->constrained_intra_prediction;
-
-  if (self->loop_filter_mode != GST_OMX_H264_VIDEO_ENC_LOOP_FILTER_MODE_DEFAULT) {
-    param.eLoopFilterMode = self->loop_filter_mode;
-  }
-
-  err =
-      gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
-      OMX_IndexParamVideoAvc, &param);
-  if (err == OMX_ErrorUnsupportedIndex) {
-    GST_WARNING_OBJECT (self,
-        "Setting OMX_IndexParamVideoAvc not supported by component");
-    return TRUE;
-  } else if (err != OMX_ErrorNone) {
-    GST_ERROR_OBJECT (self,
-        "Error setting AVC settings (profile %u and level %u): %s (0x%08x)",
-        (guint) param.eProfile, (guint) param.eLevel,
-        gst_omx_error_to_string (err), err);
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-static gboolean
-set_avc_intra_period (GstOMXH264Enc * self)
-{
-  OMX_VIDEO_CONFIG_AVCINTRAPERIOD config_avcintraperiod;
-  OMX_ERRORTYPE err;
-
-  GST_OMX_INIT_STRUCT (&config_avcintraperiod);
-  config_avcintraperiod.nPortIndex =
-      GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
-  err =
-      gst_omx_component_get_parameter (GST_OMX_VIDEO_ENC (self)->enc,
-      OMX_IndexConfigVideoAVCIntraPeriod, &config_avcintraperiod);
-  if (err == OMX_ErrorUnsupportedIndex) {
-    GST_WARNING_OBJECT (self,
-        "OMX_IndexConfigVideoAVCIntraPeriod  not supported by component");
-    return TRUE;
-  } else if (err != OMX_ErrorNone) {
-    GST_ERROR_OBJECT (self,
-        "can't get OMX_IndexConfigVideoAVCIntraPeriod %s (0x%08x)",
-        gst_omx_error_to_string (err), err);
-    return FALSE;
-  }
-
-  GST_DEBUG_OBJECT (self, "default nPFrames:%u, nIDRPeriod:%u",
-      (guint) config_avcintraperiod.nPFrames,
-      (guint) config_avcintraperiod.nIDRPeriod);
-
-  if (self->periodicty_idr !=
-      GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT) {
-    config_avcintraperiod.nIDRPeriod = self->periodicty_idr;
-  }
-
-  if (self->interval_intraframes !=
-      GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT) {
-    /* This OMX API doesn't allow us to specify the number of B-frames.
-     * So if user requested one we have to rely on update_param_avc()
-     * to configure the intraframes interval so it can take the
-     * B-frames into account. */
-    if (self->b_frames == GST_OMX_H264_VIDEO_ENC_B_FRAMES_DEFAULT)
-      config_avcintraperiod.nPFrames = self->interval_intraframes;
-  }
-
-  err =
-      gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
-      OMX_IndexConfigVideoAVCIntraPeriod, &config_avcintraperiod);
-  if (err != OMX_ErrorNone) {
-    GST_ERROR_OBJECT (self,
-        "can't set OMX_IndexConfigVideoAVCIntraPeriod %s (0x%08x)",
-        gst_omx_error_to_string (err), err);
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-#ifdef USE_OMX_TARGET_RPI
-static gboolean
-set_brcm_video_intra_period (GstOMXH264Enc * self)
-{
-  OMX_PARAM_U32TYPE intra_period;
-  OMX_ERRORTYPE err;
-
-  GST_OMX_INIT_STRUCT (&intra_period);
-
-  intra_period.nPortIndex = GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
-  err =
-      gst_omx_component_get_parameter (GST_OMX_VIDEO_ENC (self)->enc,
-      OMX_IndexConfigBrcmVideoIntraPeriod, &intra_period);
-  if (err != OMX_ErrorNone) {
-    GST_ERROR_OBJECT (self,
-        "can't get OMX_IndexConfigBrcmVideoIntraPeriod %s (0x%08x)",
-        gst_omx_error_to_string (err), err);
-    return FALSE;
-  }
-
-  GST_DEBUG_OBJECT (self, "default OMX_IndexConfigBrcmVideoIntraPeriod: %u",
-      (guint) intra_period.nU32);
-
-  if (self->interval_intraframes ==
-      GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT)
-    return TRUE;
-
-  intra_period.nU32 = self->interval_intraframes;
-
-  err =
-      gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
-      OMX_IndexConfigBrcmVideoIntraPeriod, &intra_period);
-  if (err != OMX_ErrorNone) {
-    GST_ERROR_OBJECT (self,
-        "can't set OMX_IndexConfigBrcmVideoIntraPeriod %s (0x%08x)",
-        gst_omx_error_to_string (err), err);
-    return FALSE;
-  }
-
-  GST_DEBUG_OBJECT (self, "OMX_IndexConfigBrcmVideoIntraPeriod set to %u",
-      (guint) intra_period.nU32);
-
-  return TRUE;
-}
-#endif
-
 static gboolean
 gst_omx_h264_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
     GstVideoCodecState * state)
@@ -585,13 +307,18 @@ gst_omx_h264_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
   GstOMXH264Enc *self = GST_OMX_H264_ENC (enc);
   GstCaps *peercaps;
   OMX_PARAM_PORTDEFINITIONTYPE port_def;
+#ifdef __LINUX_MEDIA_NAS__
+  OMX_VIDEO_PARAM_AVCTYPE param;
+  GstVideoInfo *info = &state->info;
+#else
+  OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
+  OMX_VIDEO_CONFIG_AVCINTRAPERIOD config_avcintraperiod;
+#endif
 #ifdef USE_OMX_TARGET_RPI
   OMX_CONFIG_PORTBOOLEANTYPE config_inline_header;
 #endif
   OMX_ERRORTYPE err;
   const gchar *profile_string, *level_string;
-  OMX_VIDEO_AVCPROFILETYPE profile = OMX_VIDEO_AVCProfileMax;
-  OMX_VIDEO_AVCLEVELTYPE level = OMX_VIDEO_AVCLevelMax;
 
 #ifdef USE_OMX_TARGET_RPI
   GST_OMX_INIT_STRUCT (&config_inline_header);
@@ -623,31 +350,110 @@ gst_omx_h264_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
     return FALSE;
   }
 #endif
-
-  /* Configure GOP pattern */
+#ifndef __LINUX_MEDIA_NAS__
   if (self->periodicty_idr !=
       GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT
       || self->interval_intraframes !=
       GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT) {
-    set_avc_intra_period (self);
-  }
-#ifdef USE_OMX_TARGET_RPI
-  /* The Pi uses a specific OMX setting to configure the intra period */
 
-  if (self->interval_intraframes)
-    set_brcm_video_intra_period (self);
+    GST_OMX_INIT_STRUCT (&config_avcintraperiod);
+    config_avcintraperiod.nPortIndex =
+        GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
+    err =
+        gst_omx_component_get_parameter (GST_OMX_VIDEO_ENC (self)->enc,
+        OMX_IndexConfigVideoAVCIntraPeriod, &config_avcintraperiod);
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "can't get OMX_IndexConfigVideoAVCIntraPeriod %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+
+    GST_DEBUG_OBJECT (self, "default nPFrames:%u, nIDRPeriod:%u",
+        (guint) config_avcintraperiod.nPFrames,
+        (guint) config_avcintraperiod.nIDRPeriod);
+
+    if (self->periodicty_idr !=
+        GST_OMX_H264_VIDEO_ENC_PERIODICITY_OF_IDR_FRAMES_DEFAULT) {
+      config_avcintraperiod.nIDRPeriod = self->periodicty_idr;
+    }
+
+    if (self->interval_intraframes !=
+        GST_OMX_H264_VIDEO_ENC_INTERVAL_OF_CODING_INTRA_FRAMES_DEFAULT) {
+      config_avcintraperiod.nPFrames = self->interval_intraframes;
+    }
+
+    err =
+        gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
+        OMX_IndexConfigVideoAVCIntraPeriod, &config_avcintraperiod);
+    if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "can't set OMX_IndexConfigVideoAVCIntraPeriod %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+  }
 #endif
 
   gst_omx_port_get_port_definition (GST_OMX_VIDEO_ENC (self)->enc_out_port,
       &port_def);
   port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingAVC;
+#ifdef __LINUX_MEDIA_NAS__
+  if (self->bitrate != GST_OMX_H264_VIDEO_ENC_BITRATE_DEFAULT) {
+    port_def.format.video.nBitrate = self->bitrate;
+  }
+#endif
   err =
       gst_omx_port_update_port_definition (GST_OMX_VIDEO_ENC
       (self)->enc_out_port, &port_def);
   if (err != OMX_ErrorNone)
     return FALSE;
 
-  /* Set profile and level */
+  GST_OMX_INIT_STRUCT (&param);
+  param.nPortIndex = GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
+#ifdef __LINUX_MEDIA_NAS__
+  err =
+      gst_omx_component_get_parameter (GST_OMX_VIDEO_ENC (self)->enc,
+      OMX_IndexParamVideoAvc, &param);
+#else
+  err =
+      gst_omx_component_get_parameter (GST_OMX_VIDEO_ENC (self)->enc,
+      OMX_IndexParamVideoProfileLevelCurrent, &param);
+#endif
+  if (err != OMX_ErrorNone) {
+    GST_WARNING_OBJECT (self,
+        "Setting profile/level not supported by component");
+    return TRUE;
+  }
+#ifdef __LINUX_MEDIA_NAS__
+  if (self->rotation != GST_OMX_H264_VIDEO_ENC_ROTATION_DEFAULT) {
+    OMX_S32 degree;
+    OMX_INDEXTYPE index;
+
+    degree = self->rotation;
+    err = gst_omx_component_get_extension_index (GST_OMX_VIDEO_ENC (self)->enc,
+        (OMX_STRING) "OMX.realtek.android.index.setVideoEncRotAngle", &index);
+    if (err == OMX_ErrorUnsupportedIndex) {
+      GST_WARNING_OBJECT (self, "Setting rotation not supported by component");
+    } else if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self, "Failed to set rotation: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+    err =
+        gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
+        index, &degree);
+    if (err == OMX_ErrorUnsupportedIndex) {
+      GST_WARNING_OBJECT (self, "Setting rotation not supported by component");
+    } else if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Failed to set rotation: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+  }
+#endif
+
   peercaps = gst_pad_peer_query_caps (GST_VIDEO_ENCODER_SRC_PAD (enc),
       gst_pad_get_pad_template_caps (GST_VIDEO_ENCODER_SRC_PAD (enc)));
   if (peercaps) {
@@ -662,30 +468,115 @@ gst_omx_h264_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
     s = gst_caps_get_structure (peercaps, 0);
     profile_string = gst_structure_get_string (s, "profile");
     if (profile_string) {
-      profile = gst_omx_h264_utils_get_profile_from_str (profile_string);
-      if (profile == OMX_VIDEO_AVCProfileMax)
+      if (g_str_equal (profile_string, "baseline")) {
+        param.eProfile = OMX_VIDEO_AVCProfileBaseline;
+      } else if (g_str_equal (profile_string, "main")) {
+        param.eProfile = OMX_VIDEO_AVCProfileMain;
+      } else if (g_str_equal (profile_string, "extended")) {
+        param.eProfile = OMX_VIDEO_AVCProfileExtended;
+      } else if (g_str_equal (profile_string, "high")) {
+        param.eProfile = OMX_VIDEO_AVCProfileHigh;
+      } else if (g_str_equal (profile_string, "high-10")) {
+        param.eProfile = OMX_VIDEO_AVCProfileHigh10;
+      } else if (g_str_equal (profile_string, "high-4:2:2")) {
+        param.eProfile = OMX_VIDEO_AVCProfileHigh422;
+      } else if (g_str_equal (profile_string, "high-4:4:4")) {
+        param.eProfile = OMX_VIDEO_AVCProfileHigh444;
+      } else {
         goto unsupported_profile;
+      }
     }
     level_string = gst_structure_get_string (s, "level");
     if (level_string) {
-      level = gst_omx_h264_utils_get_level_from_str (level_string);
-      if (level == OMX_VIDEO_AVCLevelMax)
+      if (g_str_equal (level_string, "1")) {
+        param.eLevel = OMX_VIDEO_AVCLevel1;
+      } else if (g_str_equal (level_string, "1b")) {
+        param.eLevel = OMX_VIDEO_AVCLevel1b;
+      } else if (g_str_equal (level_string, "1.1")) {
+        param.eLevel = OMX_VIDEO_AVCLevel11;
+      } else if (g_str_equal (level_string, "1.2")) {
+        param.eLevel = OMX_VIDEO_AVCLevel12;
+      } else if (g_str_equal (level_string, "1.3")) {
+        param.eLevel = OMX_VIDEO_AVCLevel13;
+      } else if (g_str_equal (level_string, "2")) {
+        param.eLevel = OMX_VIDEO_AVCLevel2;
+      } else if (g_str_equal (level_string, "2.1")) {
+        param.eLevel = OMX_VIDEO_AVCLevel21;
+      } else if (g_str_equal (level_string, "2.2")) {
+        param.eLevel = OMX_VIDEO_AVCLevel22;
+      } else if (g_str_equal (level_string, "3")) {
+        param.eLevel = OMX_VIDEO_AVCLevel3;
+      } else if (g_str_equal (level_string, "3.1")) {
+        param.eLevel = OMX_VIDEO_AVCLevel31;
+      } else if (g_str_equal (level_string, "3.2")) {
+        param.eLevel = OMX_VIDEO_AVCLevel32;
+      } else if (g_str_equal (level_string, "4")) {
+        param.eLevel = OMX_VIDEO_AVCLevel4;
+      } else if (g_str_equal (level_string, "4.1")) {
+        param.eLevel = OMX_VIDEO_AVCLevel41;
+      } else if (g_str_equal (level_string, "4.2")) {
+        param.eLevel = OMX_VIDEO_AVCLevel42;
+      } else if (g_str_equal (level_string, "5")) {
+        param.eLevel = OMX_VIDEO_AVCLevel5;
+      } else if (g_str_equal (level_string, "5.1")) {
+        param.eLevel = OMX_VIDEO_AVCLevel51;
+      } else {
         goto unsupported_level;
+      }
     }
-
     gst_caps_unref (peercaps);
   }
-
-  if (profile != OMX_VIDEO_AVCProfileMax || level != OMX_VIDEO_AVCLevelMax) {
-    /* OMX provides 2 API to set the profile and level. We try using the
-     * generic one here and the H264 specific when calling
-     * update_param_avc() */
-    if (!update_param_profile_level (self, profile, level))
-      return FALSE;
+#ifdef __LINUX_MEDIA_NAS__
+  if (info->fps_n != 0 && info->fps_d != 0) {
+    param.nPFrames =
+        (info->fps_n) * (self->interval_intraframes) / (info->fps_d);
   }
-
-  if (!update_param_avc (self, profile, level))
+  err =
+      gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
+      OMX_IndexParamVideoAvc, &param);
+#else
+  err =
+      gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
+      OMX_IndexParamVideoProfileLevelCurrent, &param);
+#endif
+  if (err == OMX_ErrorUnsupportedIndex) {
+    GST_WARNING_OBJECT (self,
+        "Setting profile/level not supported by component");
+  } else if (err != OMX_ErrorNone) {
+    GST_ERROR_OBJECT (self,
+        "Error setting profile %u and level %u: %s (0x%08x)",
+        (guint) param.eProfile, (guint) param.eLevel,
+        gst_omx_error_to_string (err), err);
     return FALSE;
+  }
+/*  if (self->interlace != 0) {
+    interlace_enable = OMX_TRUE;
+    OMX_INDEXTYPE index;
+    err =
+      gst_omx_component_get_extension_index (GST_OMX_VIDEO_ENC (self)->enc,
+      "OMX.RTK.index.EncodeToInterlace", &index);
+    if (err == OMX_ErrorUnsupportedIndex) {
+      GST_WARNING_OBJECT (self,
+          "Setting interlace not supported by component");
+    } else if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Error setting interlace: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+    err =
+      gst_omx_component_set_parameter (GST_OMX_VIDEO_ENC (self)->enc,
+      index, &interlace_enable);
+    if (err == OMX_ErrorUnsupportedIndex) {
+      GST_WARNING_OBJECT (self,
+          "Setting interlace not supported by component");
+    } else if (err != OMX_ErrorNone) {
+      GST_ERROR_OBJECT (self,
+          "Error setting interlace: %s (0x%08x)",
+          gst_omx_error_to_string (err), err);
+      return FALSE;
+    }
+  }*/
 
   return TRUE;
 
@@ -710,6 +601,10 @@ gst_omx_h264_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
   OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
   const gchar *profile, *level;
 
+  caps = gst_caps_new_simple ("video/x-h264",
+      "stream-format", G_TYPE_STRING, "byte-stream",
+      "alignment", G_TYPE_STRING, "au", NULL);
+
   GST_OMX_INIT_STRUCT (&param);
   param.nPortIndex = GST_OMX_VIDEO_ENC (self)->enc_out_port->index;
 
@@ -719,16 +614,32 @@ gst_omx_h264_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
   if (err != OMX_ErrorNone && err != OMX_ErrorUnsupportedIndex)
     return NULL;
 
-  caps = gst_caps_new_simple ("video/x-h264",
-      "stream-format", G_TYPE_STRING, "byte-stream",
-      "alignment", G_TYPE_STRING, "au", NULL);
-
   if (err == OMX_ErrorNone) {
-    profile = gst_omx_h264_utils_get_profile_from_enum (param.eProfile);
-    if (!profile) {
-      g_assert_not_reached ();
-      gst_caps_unref (caps);
-      return NULL;
+    switch (param.eProfile) {
+      case OMX_VIDEO_AVCProfileBaseline:
+        profile = "baseline";
+        break;
+      case OMX_VIDEO_AVCProfileMain:
+        profile = "main";
+        break;
+      case OMX_VIDEO_AVCProfileExtended:
+        profile = "extended";
+        break;
+      case OMX_VIDEO_AVCProfileHigh:
+        profile = "high";
+        break;
+      case OMX_VIDEO_AVCProfileHigh10:
+        profile = "high-10";
+        break;
+      case OMX_VIDEO_AVCProfileHigh422:
+        profile = "high-4:2:2";
+        break;
+      case OMX_VIDEO_AVCProfileHigh444:
+        profile = "high-4:4:4";
+        break;
+      default:
+        g_assert_not_reached ();
+        return NULL;
     }
 
     switch (param.eLevel) {
@@ -780,23 +691,8 @@ gst_omx_h264_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
       case OMX_VIDEO_AVCLevel51:
         level = "5.1";
         break;
-#ifdef USE_OMX_TARGET_ZYNQ_USCALE_PLUS
-      case OMX_ALG_VIDEO_AVCLevel52:
-        level = "5.2";
-        break;
-      case OMX_ALG_VIDEO_AVCLevel60:
-        level = "6.0";
-        break;
-      case OMX_ALG_VIDEO_AVCLevel61:
-        level = "6.1";
-        break;
-      case OMX_ALG_VIDEO_AVCLevel62:
-        level = "6.2";
-        break;
-#endif
       default:
         g_assert_not_reached ();
-        gst_caps_unref (caps);
         return NULL;
     }
     gst_caps_set_simple (caps,
